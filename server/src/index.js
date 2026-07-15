@@ -20,6 +20,11 @@ app.use(cors());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
+// Health check must stay public — Render probes without Basic Auth credentials.
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, name: "ix-tools", ts: new Date().toISOString() });
+});
+
 const authUser = process.env.BASIC_AUTH_USER;
 const authPass = process.env.BASIC_AUTH_PASSWORD;
 if (authUser && authPass) {
@@ -31,10 +36,6 @@ if (authUser && authPass) {
     })
   );
 }
-
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, name: "ix-tools", ts: new Date().toISOString() });
-});
 
 app.use("/api/tools", toolsRouter);
 
@@ -68,7 +69,7 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ ok: false, error: err.message || "Error interno" });
 });
 
-app.listen(PORT, () => {
-  console.log(`IX Tools server on http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`IX Tools server on http://0.0.0.0:${PORT}`);
   if (authUser) console.log("Basic auth enabled");
 });
