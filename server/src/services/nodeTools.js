@@ -5,6 +5,39 @@ function jsonOneline(text, stringify = false) {
   return compact;
 }
 
+/**
+ * Pretty-print JSON. Opposite of jsonOneline.
+ * @param {string} text
+ * @param {{ unwrap?: boolean, spaces?: number }} [opts]
+ *   unwrap: if true (default), keep parsing while the value is a JSON string
+ *           (undo doble stringify / escaped payloads).
+ */
+function jsonPretty(text, opts = {}) {
+  const unwrap = opts.unwrap !== false;
+  const spaces = opts.spaces != null ? Number(opts.spaces) : 2;
+  let raw = String(text || "").trim();
+  if (!raw) throw new Error("JSON vacío");
+
+  let data = JSON.parse(raw);
+  let unwrapped = 0;
+  if (unwrap) {
+    while (typeof data === "string") {
+      const next = data.trim();
+      if (!(next.startsWith("{") || next.startsWith("[") || next.startsWith('"'))) {
+        break;
+      }
+      try {
+        data = JSON.parse(next);
+        unwrapped += 1;
+      } catch {
+        break;
+      }
+      if (unwrapped > 10) break;
+    }
+  }
+  return JSON.stringify(data, null, Number.isFinite(spaces) ? spaces : 2);
+}
+
 const TOP_LEVEL_KEYS = ["cid", "status", "code", "timestamp", "data", "error"];
 const SHIPMENT_KEYS = [
   "id",
@@ -76,4 +109,4 @@ function extractBrokered(text) {
   return lines.join("\n");
 }
 
-module.exports = { jsonOneline, transformShipment, extractBrokered };
+module.exports = { jsonOneline, jsonPretty, transformShipment, extractBrokered };

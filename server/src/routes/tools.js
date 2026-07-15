@@ -12,6 +12,7 @@ const {
 const { upload } = require("../middleware/upload");
 const {
   jsonOneline,
+  jsonPretty,
   transformShipment,
   extractBrokered,
 } = require("../services/nodeTools");
@@ -370,6 +371,23 @@ router.post("/json-oneline", (req, res) => {
     const { text, stringify = false } = req.body || {};
     const out = jsonOneline(text, Boolean(stringify));
     const saved = saveTextJob(out + "\n", stringify ? "json_stringified.txt" : "json_oneline.json");
+    okResult(res, {
+      result: out,
+      logs: ["OK"],
+      downloadUrl: saved.downloadUrl,
+      downloadName: saved.downloadName,
+      summary: { success: 1, errors: 0 },
+    });
+  } catch (e) {
+    failResult(res, 400, e.message);
+  }
+});
+
+router.post("/json-pretty", (req, res) => {
+  try {
+    const { text, unwrap = true } = req.body || {};
+    const out = jsonPretty(text, { unwrap: unwrap !== false && unwrap !== "false" });
+    const saved = saveTextJob(out + "\n", "json_pretty.json");
     okResult(res, {
       result: out,
       logs: ["OK"],

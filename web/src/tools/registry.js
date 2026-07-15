@@ -101,6 +101,15 @@ export const tools = [
     icon: "SearchCircle",
   },
   {
+    slug: "json-diff",
+    title: "JSON Diff",
+    description:
+      "Compara dos JSON lado a lado (estilo Beyond Compare): added / removed / changed por path.",
+    help: "Pegá o subí Left (A) y Right (B). Ordena keys para ignorar el orden de propiedades, opcionalmente ignora el orden de arrays. Ves el pretty side-by-side con colores y la lista de paths distintos — útil para payloads, responses de API o dumps de órdenes.",
+    category: "json",
+    icon: "GitCompare",
+  },
+  {
     slug: "json-oneline",
     title: "JSON oneline",
     description:
@@ -108,6 +117,15 @@ export const tools = [
     help: "Minifica JSON multilínea. Con “doble stringify” queda listo para usarlo como valor string de un campo data dentro de otro envelope JSON ( típico en payloads de eventos).",
     category: "json",
     icon: "CodeSlash",
+  },
+  {
+    slug: "json-pretty",
+    title: "JSON pretty",
+    description:
+      "Formatea un JSON minificado o stringificado a multilínea legible (indent).",
+    help: "Contrario de JSON oneline: pegá un one-liner o un valor con doble stringify (\"{\\\"a\\\":1}\") y obtenés JSON pretty con indentación. Con “Deshacer stringify” activo, desempaqueta strings JSON anidados hasta llegar al objeto real.",
+    category: "json",
+    icon: "CodeWorking",
   },
   {
     slug: "shipment-transform",

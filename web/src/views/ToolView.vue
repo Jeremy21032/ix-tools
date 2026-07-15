@@ -27,6 +27,7 @@ import {
   countriesFrom,
   typesForCountry,
 } from "../tools/fakeDataCatalog";
+import JsonDiffTool from "../components/JsonDiffTool.vue";
 
 const props = defineProps({ slug: { type: String, required: true } });
 
@@ -208,10 +209,25 @@ const FORM_CONFIG = {
       { key: "country", type: "text", label: "Country (product)", default: "PE" },
     ],
   },
+  "json-diff": {
+    fields: [],
+    special: "json-diff",
+  },
   "json-oneline": {
     fields: [
       { key: "text", type: "textarea", label: "JSON", rows: 12 },
       { key: "stringify", type: "switch", label: "Doble stringify", default: false },
+    ],
+  },
+  "json-pretty": {
+    fields: [
+      { key: "text", type: "textarea", label: "JSON (oneline o stringificado)", rows: 12 },
+      {
+        key: "unwrap",
+        type: "switch",
+        label: "Deshacer stringify (si viene escapado como string)",
+        default: true,
+      },
     ],
   },
   "shipment-transform": {
@@ -537,7 +553,11 @@ const downloadLabel = computed(() => {
       </n-alert>
     </div>
 
-    <n-card>
+    <n-card v-if="config.special === 'json-diff'">
+      <JsonDiffTool />
+    </n-card>
+
+    <n-card v-else>
       <n-form label-placement="top">
         <!-- Cascada: documento/teléfono → país → tipos de ese país -->
         <template v-if="config.special === 'fake-data'">
