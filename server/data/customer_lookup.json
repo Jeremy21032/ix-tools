@@ -1,0 +1,61 @@
+{
+  "JBLCOWL180": {
+    "country": "CO",
+    "customerId": "Crocs",
+    "type": "ID00216",
+    "channel": "WL180"
+  },
+  "HDCCLWL180": {
+    "country": "CO",
+    "customerId": "Crocs",
+    "type": "ID00216",
+    "channel": "WL180"
+  },
+  "JBLPEWL180": {
+    "country": "PE",
+    "customerId": "",
+    "type": "ID00221",
+    "channel": "WL180"
+  },
+  "JBLCLWL180": {
+    "country": "CL",
+    "customerId": "",
+    "type": "ID00220",
+    "channel": "WL180"
+  },
+  "JBLMXWL180": {
+    "country": "MX",
+    "customerId": "JBL",
+    "type": "ID00226",
+    "channel": "B2B"
+  },
+  "HNAMXWL180": {
+    "country": "MX",
+    "customerId": "JBL",
+    "type": "ID00226",
+    "channel": "B2B"
+  },
+  "HNKMXWL180": {
+    "country": "MX",
+    "customerId": "JBL",
+    "type": "ID00226",
+    "channel": "B2B"
+  },
+  "JBLGTWL180": {
+    "country": "GT",
+    "customerId": "JBL",
+    "type": "ID00224",
+    "channel": "B2B"
+  },
+  "JBLCRWL180": {
+    "country": "CR",
+    "customerId": "JBL",
+    "type": "ID00223",
+    "channel": "B2B"
+  }, "JBLUYWL180":{
+    "country": "UY",
+    "customerId": "JBL",
+    "type": "ID00231",
+    "channel": "WL180"
+  }
+}

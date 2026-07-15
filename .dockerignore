@@ -1,0 +1,13 @@
+.dockerignore
+node_modules
+web/node_modules
+server/node_modules
+web/dist
+server/downloads
+server/tmp
+.env
+.git
+*.log
+__pycache__
+.venv
+venv

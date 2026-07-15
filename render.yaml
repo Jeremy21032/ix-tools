@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: ix-tools
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: PYTHON_BIN
+        value: python3
+      - key: BASIC_AUTH_USER
+        sync: false
+      - key: BASIC_AUTH_PASSWORD
+        sync: false
+      - key: OCP_APIM_SUBSCRIPTION_KEY
+        sync: false
+      - key: OCP_APIM_SUBSCRIPTION_KEY_PROVIDER_RELEASED
+        sync: false
+      - key: SHOPIFY_STORE
+        sync: false
+      - key: SHOPIFY_ACCESS_TOKEN
+        sync: false
+      - key: SIGNATURE_APIM_KEY
+        sync: false
+      - key: PRODUCT_CATALOG_APIM_KEY
+        sync: false
+      - key: PRODUCT_CATALOG_CODE
+        sync: false
+    healthCheckPath: /api/health

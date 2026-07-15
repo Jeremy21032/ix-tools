@@ -1,0 +1,13 @@
+node_modules/
+dist/
+web/dist/
+.env
+.env.example
+*.log
+.DS_Store
+server/tmp/
+server/downloads/
+__pycache__/
+*.pyc
+.venv/
+venv/
