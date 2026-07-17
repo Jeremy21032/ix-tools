@@ -170,6 +170,14 @@ export const tools = [
     icon: "Images",
   },
   {
+    slug: "markdown-pdf",
+    title: "Markdown → PDF",
+    description: "Cargá un .md, previsualizalo y exportalo a PDF (A4).",
+    help: "Utilidad para README, runbooks o notas. Pegá o subí Markdown (GFM), ves el preview en vivo y generás un PDF descargable. También podés bajar el .md editado.",
+    category: "utils",
+    icon: "Reader",
+  },
+  {
     slug: "fake-documents",
     title: "Datos de prueba",
     description:

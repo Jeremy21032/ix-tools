@@ -29,6 +29,7 @@ import {
 } from "../tools/fakeDataCatalog";
 import JsonDiffTool from "../components/JsonDiffTool.vue";
 import CustomerLookupEditor from "../components/CustomerLookupEditor.vue";
+import MarkdownPdfTool from "../components/MarkdownPdfTool.vue";
 
 const props = defineProps({ slug: { type: String, required: true } });
 
@@ -262,6 +263,10 @@ const FORM_CONFIG = {
       { key: "delay", type: "text", label: "Delay segundos", default: "0.5" },
     ],
     multipart: true,
+  },
+  "markdown-pdf": {
+    fields: [],
+    special: "markdown-pdf",
   },
   "fake-documents": {
     // Formulario propio (cascada kind → país → tipo) en el template
@@ -564,6 +569,10 @@ const downloadLabel = computed(() => {
 
     <n-card v-else-if="config.special === 'customer-lookup'">
       <CustomerLookupEditor />
+    </n-card>
+
+    <n-card v-else-if="config.special === 'markdown-pdf'">
+      <MarkdownPdfTool />
     </n-card>
 
     <n-card v-else>
