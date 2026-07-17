@@ -24,9 +24,18 @@ const {
   asTable,
   downloadUrl,
 } = require("../services/resultArtifacts");
+const {
+  getLookupPath,
+  readLookup,
+  readMeta,
+  writeLookup,
+  rowsToLookup,
+  lookupToRows,
+  validateLookup,
+} = require("../services/customerLookup");
 
 const router = express.Router();
-const CUSTOMER_LOOKUP = path.join(__dirname, "../../data/customer_lookup.json");
+const CUSTOMER_LOOKUP = getLookupPath();
 
 function okResult(res, payload) {
   res.json({ ok: true, ...payload });
@@ -128,6 +137,70 @@ router.get("/order-status-resender/meta", (_req, res) => {
       { value: "UAT", label: "UAT", url: uat.url, hasKey: Boolean(uat.apimKey) },
     ],
   });
+});
+
+/** GET /api/tools/customer-lookup — leer customer_lookup.json */
+router.get("/customer-lookup", (_req, res) => {
+  try {
+    const data = readLookup();
+    const meta = readMeta();
+    okResult(res, {
+      data,
+      rows: lookupToRows(data),
+      path: CUSTOMER_LOOKUP,
+      count: Object.keys(data).length,
+      meta,
+    });
+  } catch (e) {
+    failResult(res, 500, e.message);
+  }
+});
+
+/** POST /api/tools/customer-lookup — guardar (body.data objeto o body.rows tabla) */
+router.post("/customer-lookup", (req, res) => {
+  try {
+    let payload = req.body?.data;
+    if (payload == null && Array.isArray(req.body?.rows)) {
+      payload = rowsToLookup(req.body.rows);
+    }
+    if (payload == null && req.body?.text) {
+      payload = JSON.parse(String(req.body.text));
+    }
+    const result = writeLookup(payload, {
+      note: req.body?.note,
+      source: req.body?.source || "ui",
+    });
+    if (!result.ok) return failResult(res, 400, result.error);
+    okResult(res, {
+      data: result.data,
+      rows: lookupToRows(result.data),
+      count: result.count,
+      path: result.path,
+      meta: result.meta,
+      summary: { success: result.count, errors: 0 },
+      logs: [
+        `Guardado ${result.count} customer(s) en customer_lookup.json`,
+        result.meta?.updatedAt ? `Última actualización: ${result.meta.updatedAt}` : "",
+      ].filter(Boolean),
+    });
+  } catch (e) {
+    failResult(res, 400, e.message);
+  }
+});
+
+/** POST /api/tools/customer-lookup/validate — dry-run sin escribir */
+router.post("/customer-lookup/validate", (req, res) => {
+  try {
+    let payload = req.body?.data;
+    if (payload == null && Array.isArray(req.body?.rows)) {
+      payload = rowsToLookup(req.body.rows);
+    }
+    const result = validateLookup(payload);
+    if (!result.ok) return failResult(res, 400, result.error);
+    okResult(res, { data: result.data, count: Object.keys(result.data).length });
+  } catch (e) {
+    failResult(res, 400, e.message);
+  }
 });
 
 /** POST /api/tools/get-order-excel */

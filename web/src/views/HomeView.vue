@@ -20,6 +20,7 @@ import {
   GitNetworkOutline,
   ImagesOutline,
   IdCardOutline,
+  PeopleOutline,
 } from "@vicons/ionicons5";
 import { tools, CATEGORIES } from "../tools/registry";
 
@@ -41,6 +42,7 @@ const ICONS = {
   GitNetwork: GitNetworkOutline,
   Images: ImagesOutline,
   IdCard: IdCardOutline,
+  People: PeopleOutline,
 };
 
 const route = useRoute();

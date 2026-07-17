@@ -28,6 +28,7 @@ import {
   typesForCountry,
 } from "../tools/fakeDataCatalog";
 import JsonDiffTool from "../components/JsonDiffTool.vue";
+import CustomerLookupEditor from "../components/CustomerLookupEditor.vue";
 
 const props = defineProps({ slug: { type: String, required: true } });
 
@@ -91,6 +92,10 @@ const FORM_CONFIG = {
       { key: "debug", type: "switch", label: "Debug", default: false },
     ],
     multipart: true,
+  },
+  "customer-lookup": {
+    fields: [],
+    special: "customer-lookup",
   },
   "fema-consumer-order": {
     fields: [{ key: "orders", type: "textarea", label: "Order IDs (uno por línea o coma)", rows: 10 }],
@@ -555,6 +560,10 @@ const downloadLabel = computed(() => {
 
     <n-card v-if="config.special === 'json-diff'">
       <JsonDiffTool />
+    </n-card>
+
+    <n-card v-else-if="config.special === 'customer-lookup'">
+      <CustomerLookupEditor />
     </n-card>
 
     <n-card v-else>
