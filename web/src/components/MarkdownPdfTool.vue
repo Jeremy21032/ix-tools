@@ -29,7 +29,6 @@ console.log("hola");
 const markdown = ref("");
 const fileName = ref("documento.md");
 const exporting = ref(false);
-const previewEl = ref(null);
 
 marked.setOptions({
   gfm: true,
@@ -82,41 +81,149 @@ async function exportPdf() {
     return;
   }
   exporting.value = true;
+  let wrap = null;
   try {
     await nextTick();
-    const el = previewEl.value;
-    if (!el) throw new Error("Preview no disponible");
+    const html = previewHtml.value;
+    if (!html.trim()) throw new Error("No hay HTML para exportar");
 
     const html2pdf = (await import("html2pdf.js")).default;
     const outName = `${fileName.value.replace(/\.md$/i, "") || "documento"}.pdf`;
 
-    // Clone into offscreen container so page chrome doesn't appear in PDF
-    const clone = el.cloneNode(true);
-    clone.classList.add("md-pdf-export");
-    const wrap = document.createElement("div");
-    wrap.style.cssText =
-      "position:fixed;left:-10000px;top:0;width:794px;padding:24px;background:#fff;color:#111;";
-    wrap.appendChild(clone);
+    // Contenedor en viewport (no off-screen): html2canvas no captura left:-9999px
+    wrap = document.createElement("div");
+    wrap.setAttribute("data-md-pdf-root", "1");
+    wrap.innerHTML = `
+      <style>
+        [data-md-pdf-root] {
+          box-sizing: border-box;
+          width: 794px;
+          padding: 28px 32px;
+          background: #ffffff !important;
+          color: #111111 !important;
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: 14px;
+          line-height: 1.55;
+        }
+        [data-md-pdf-root] * { box-sizing: border-box; }
+        [data-md-pdf-root] h1,
+        [data-md-pdf-root] h2,
+        [data-md-pdf-root] h3 {
+          font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+          line-height: 1.25;
+          margin: 1.1em 0 0.45em;
+          color: #111 !important;
+        }
+        [data-md-pdf-root] h1 {
+          font-size: 22px;
+          border-bottom: 1px solid #ddd;
+          padding-bottom: 6px;
+          margin-top: 0;
+        }
+        [data-md-pdf-root] h2 { font-size: 18px; }
+        [data-md-pdf-root] h3 { font-size: 15px; }
+        [data-md-pdf-root] p,
+        [data-md-pdf-root] ul,
+        [data-md-pdf-root] ol { margin: 0.55em 0; }
+        [data-md-pdf-root] ul,
+        [data-md-pdf-root] ol { padding-left: 1.4em; }
+        [data-md-pdf-root] code {
+          font-family: ui-monospace, Consolas, monospace;
+          font-size: 0.88em;
+          background: #f1f5f9;
+          padding: 0.1em 0.35em;
+          border-radius: 4px;
+          color: #111 !important;
+        }
+        [data-md-pdf-root] pre {
+          background: #0f172a;
+          color: #e2e8f0 !important;
+          padding: 12px 14px;
+          border-radius: 8px;
+          overflow: visible;
+          white-space: pre-wrap;
+          word-break: break-word;
+          font-size: 11px;
+        }
+        [data-md-pdf-root] pre code {
+          background: transparent;
+          padding: 0;
+          color: inherit !important;
+        }
+        [data-md-pdf-root] blockquote {
+          margin: 0.75em 0;
+          padding-left: 12px;
+          border-left: 3px solid #94a3b8;
+          color: #334155 !important;
+        }
+        [data-md-pdf-root] table {
+          border-collapse: collapse;
+          width: 100%;
+          margin: 0.75em 0;
+          font-size: 12px;
+        }
+        [data-md-pdf-root] th,
+        [data-md-pdf-root] td {
+          border: 1px solid #cbd5e1;
+          padding: 6px 8px;
+          text-align: left;
+          color: #111 !important;
+          background: #fff !important;
+        }
+        [data-md-pdf-root] th { background: #f8fafc !important; }
+        [data-md-pdf-root] a { color: #1d4ed8 !important; }
+        [data-md-pdf-root] hr {
+          border: none;
+          border-top: 1px solid #e5e7eb;
+          margin: 1.25em 0;
+        }
+        [data-md-pdf-root] img { max-width: 100%; height: auto; }
+      </style>
+      <div class="md-pdf-body">${html}</div>
+    `;
+    wrap.style.cssText = [
+      "position:fixed",
+      "top:0",
+      "left:0",
+      "width:794px",
+      "z-index:2147483646",
+      "opacity:0.01",
+      "pointer-events:none",
+      "overflow:visible",
+      "background:#ffffff",
+    ].join(";");
     document.body.appendChild(wrap);
+
+    // Esperar layout/paint real antes de capturar
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise((r) => setTimeout(r, 50));
 
     await html2pdf()
       .set({
-        margin: [12, 12, 12, 12],
+        margin: [10, 10, 10, 10],
         filename: outName,
-        image: { type: "jpeg", quality: 0.96 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+          windowWidth: 794,
+          scrollX: 0,
+          scrollY: 0,
+        },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["css", "legacy"] },
+        pagebreak: { mode: ["avoid-all", "css", "legacy"] },
       })
       .from(wrap)
       .save();
 
-    document.body.removeChild(wrap);
     message.success(`PDF: ${outName}`);
   } catch (e) {
     console.error(e);
     message.error(e.message || "No se pudo exportar el PDF");
   } finally {
+    if (wrap?.parentNode) wrap.parentNode.removeChild(wrap);
     exporting.value = false;
   }
 }
@@ -167,7 +274,7 @@ async function exportPdf() {
         <div v-if="!hasContent" class="md-preview md-preview--empty">
           La vista previa aparece acá.
         </div>
-        <div v-else ref="previewEl" class="md-preview" v-html="previewHtml" />
+        <div v-else class="md-preview" v-html="previewHtml" />
       </div>
     </div>
   </div>
