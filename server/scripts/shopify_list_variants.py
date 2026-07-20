@@ -329,8 +329,8 @@ def get_all_product_variants(shop: str, token: str, api_version: str) -> list[di
         for r in results:
             iid = str(r.get("inventoryItemId") or "")
             r["inventory"] = inv_map.get(iid, [])
-            # keep payload lean for JSON consumers of nested form
-            r.pop("inventoryItemId", None)
+            # Expose Shopify GIDs explicitly for ops / metafields tooling
+            r["inventoryId"] = iid
         return results
     finally:
         conn.close()
@@ -340,10 +340,16 @@ def flatten_variant_rows(variants: list[dict[str, Any]]) -> list[dict[str, Any]]
     """One row per variant×location (or one empty location row if no inventory)."""
     flat: list[dict[str, Any]] = []
     for v in variants:
+        inventory_id = (
+            v.get("inventoryId")
+            or v.get("inventoryItemId")
+            or ""
+        )
         base = {
             "productId": v.get("productId") or "",
-            "productTitle": v.get("productTitle") or "",
             "variantId": v.get("variantId") or "",
+            "inventoryId": inventory_id,
+            "productTitle": v.get("productTitle") or "",
             "sku": v.get("sku") or "",
             "barcode": v.get("barcode") or "",
         }
@@ -374,8 +380,9 @@ def flatten_variant_rows(variants: list[dict[str, Any]]) -> list[dict[str, Any]]
 
 EXCEL_HEADERS = [
     "productId",
-    "productTitle",
     "variantId",
+    "inventoryId",
+    "productTitle",
     "sku",
     "barcode",
     "locationId",
@@ -405,7 +412,7 @@ def write_xlsx(path: Path, rows: list[dict[str, Any]]) -> None:
     last_row = max(1, len(rows) + 1)
     ws.auto_filter.ref = f"A1:{get_column_letter(len(EXCEL_HEADERS))}{last_row}"
 
-    widths = (36, 32, 36, 18, 18, 36, 24, 10, 10)
+    widths = (42, 46, 46, 28, 16, 16, 36, 22, 10, 10)
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 

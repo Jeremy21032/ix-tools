@@ -60,8 +60,8 @@ export const tools = [
     slug: "shopify-variants",
     title: "Shopify: listar variantes",
     description:
-      "Catálogo de variantes: SKU, barcode, location y stock por ubicación.",
-    help: "Recorre el catálogo Admin y lista cada variante con barcode, SKU y el stock disponible por location (una fila por variante×ubicación). Ves la tabla en pantalla y podés descargar Excel (.xlsx) o JSON. Credenciales por formulario. El token necesita scopes read_products y read_inventory.",
+      "Variantes con GIDs (Product / Variant / InventoryItem), SKU, barcode y stock por location.",
+    help: "Recorre el catálogo Admin y lista cada variante con productId, variantId e inventoryId (GIDs Shopify), barcode, SKU y stock por location. Una fila por variante×ubicación. Descargá Excel o JSON. Token: read_products + read_inventory.",
     category: "shopify",
     icon: "List",
   },
