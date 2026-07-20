@@ -3,13 +3,16 @@
 Lista todas las variantes de productos vía Shopify Admin GraphQL (paginado),
 incluyendo barcode e inventario por location.
 
+El inventario se pide en una segunda pasada por lotes (nodes) para no superar
+el costo máximo por query de Shopify (1000).
+
 Variables de entorno (opcional):
   SHOPIFY_SHOP            ej. tu-store.myshopify.com
   SHOPIFY_ACCESS_TOKEN    token Admin API
 
 Uso:
   py -3 shopify_list_variants.py --shop tu-store.myshopify.com --token shpat_xxx
-  py -3 shopify_list_variants.py -o variants.json
+  py -3 shopify_list_variants.py -o variants.json --excel variants.xlsx
 """
 
 from __future__ import annotations
@@ -19,20 +22,21 @@ import http.client
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-# products page size kept modest: nested inventoryLevels raises query cost
-QUERY = """
+# Pass 1: cheap — no inventoryLevels (those explode query cost)
+PRODUCTS_QUERY = """
 query getProductsWithVariants($cursor: String) {
-  products(first: 25, after: $cursor) {
+  products(first: 50, after: $cursor) {
     edges {
       cursor
       node {
         id
         title
-        variants(first: 100) {
+        variants(first: 50) {
           pageInfo {
             hasNextPage
             endCursor
@@ -44,20 +48,6 @@ query getProductsWithVariants($cursor: String) {
               barcode
               inventoryItem {
                 id
-                inventoryLevels(first: 50) {
-                  edges {
-                    node {
-                      quantities(names: ["available", "on_hand"]) {
-                        name
-                        quantity
-                      }
-                      location {
-                        id
-                        name
-                      }
-                    }
-                  }
-                }
               }
             }
           }
@@ -76,7 +66,7 @@ query ProductVariantsPage($id: ID!, $cursor: String!) {
   product(id: $id) {
     id
     title
-    variants(first: 100, after: $cursor) {
+    variants(first: 50, after: $cursor) {
       pageInfo {
         hasNextPage
         endCursor
@@ -88,19 +78,30 @@ query ProductVariantsPage($id: ID!, $cursor: String!) {
           barcode
           inventoryItem {
             id
-            inventoryLevels(first: 50) {
-              edges {
-                node {
-                  quantities(names: ["available", "on_hand"]) {
-                    name
-                    quantity
-                  }
-                  location {
-                    id
-                    name
-                  }
-                }
-              }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+# Pass 2: inventory by InventoryItem ids (small batches to stay under cost 1000)
+INVENTORY_NODES_QUERY = """
+query InventoryLevelsByItems($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on InventoryItem {
+      id
+      inventoryLevels(first: 25) {
+        edges {
+          node {
+            quantities(names: ["available", "on_hand"]) {
+              name
+              quantity
+            }
+            location {
+              id
+              name
             }
           }
         }
@@ -109,6 +110,9 @@ query ProductVariantsPage($id: ID!, $cursor: String!) {
   }
 }
 """
+
+# ~8 items × inventoryLevels(first:25) stays safely under max cost 1000
+INVENTORY_BATCH_SIZE = 8
 
 
 def normalize_shop(shop: str) -> str:
@@ -143,6 +147,12 @@ def post_graphql(
     return json.loads(raw)
 
 
+def _ensure_ok(payload: dict[str, Any]) -> dict[str, Any]:
+    if payload.get("errors"):
+        raise RuntimeError(json.dumps(payload["errors"], indent=2, ensure_ascii=False))
+    return payload.get("data") or {}
+
+
 def _qty_map(level_node: dict[str, Any]) -> dict[str, int | None]:
     out: dict[str, int | None] = {"available": None, "on_hand": None}
     for q in level_node.get("quantities") or []:
@@ -155,7 +165,6 @@ def _qty_map(level_node: dict[str, Any]) -> dict[str, int | None]:
                 out[name] = int(qty) if qty is not None else None
             except (TypeError, ValueError):
                 out[name] = None
-    # legacy field if present
     if out["available"] is None and level_node.get("available") is not None:
         try:
             out["available"] = int(level_node["available"])
@@ -164,8 +173,7 @@ def _qty_map(level_node: dict[str, Any]) -> dict[str, int | None]:
     return out
 
 
-def _inventory_levels(variant_node: dict[str, Any]) -> list[dict[str, Any]]:
-    item = variant_node.get("inventoryItem") or {}
+def _levels_from_inventory_item(item: dict[str, Any]) -> list[dict[str, Any]]:
     levels_root = item.get("inventoryLevels") or {}
     rows: list[dict[str, Any]] = []
     for edge in levels_root.get("edges") or []:
@@ -186,44 +194,124 @@ def _inventory_levels(variant_node: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
-def _variant_record(product: dict[str, Any], vnode: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "productId": product.get("id"),
-        "productTitle": product.get("title") or "",
-        "variantId": vnode.get("id"),
-        "sku": vnode.get("sku") or "",
-        "barcode": vnode.get("barcode") or "",
-        "inventory": _inventory_levels(vnode),
-    }
-
-
-def _collect_variant_edges(
+def _collect_variant_nodes(
     conn: http.client.HTTPSConnection,
     api_version: str,
     token: str,
     product: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Return all variant nodes for a product (paginated)."""
     block = product.get("variants") or {}
     edges = list(block.get("edges") or [])
     page = block.get("pageInfo") or {}
     cursor = page.get("endCursor")
     while page.get("hasNextPage") and cursor:
-        payload = post_graphql(
-            conn,
-            api_version,
-            token,
-            VARIANTS_PAGE_QUERY,
-            {"id": product.get("id"), "cursor": cursor},
+        data = _ensure_ok(
+            post_graphql(
+                conn,
+                api_version,
+                token,
+                VARIANTS_PAGE_QUERY,
+                {"id": product.get("id"), "cursor": cursor},
+            )
         )
-        if payload.get("errors"):
-            raise RuntimeError(json.dumps(payload["errors"], indent=2))
-        prod = (payload.get("data") or {}).get("product") or {}
+        prod = data.get("product") or {}
         block = prod.get("variants") or {}
         edges.extend(block.get("edges") or [])
         page = block.get("pageInfo") or {}
         cursor = page.get("endCursor")
     return [(e or {}).get("node") or {} for e in edges]
+
+
+def _fetch_variants_pass(
+    conn: http.client.HTTPSConnection,
+    api_version: str,
+    token: str,
+) -> list[dict[str, Any]]:
+    """Pass 1: product / variant / sku / barcode / inventoryItemId (no levels)."""
+    results: list[dict[str, Any]] = []
+    cursor: str | None = None
+    has_next = True
+    page_n = 0
+
+    while has_next:
+        page_n += 1
+        data = _ensure_ok(
+            post_graphql(conn, api_version, token, PRODUCTS_QUERY, {"cursor": cursor})
+        )
+        products = data.get("products") or {}
+        edges = products.get("edges") or []
+
+        for edge in edges:
+            product = edge.get("node") or {}
+            for vnode in _collect_variant_nodes(conn, api_version, token, product):
+                item = vnode.get("inventoryItem") or {}
+                results.append(
+                    {
+                        "productId": product.get("id"),
+                        "productTitle": product.get("title") or "",
+                        "variantId": vnode.get("id"),
+                        "sku": vnode.get("sku") or "",
+                        "barcode": vnode.get("barcode") or "",
+                        "inventoryItemId": item.get("id") or "",
+                        "inventory": [],
+                    }
+                )
+
+        page = products.get("pageInfo") or {}
+        has_next = bool(page.get("hasNextPage"))
+        cursor = edges[-1].get("cursor") if edges else None
+        if has_next and not cursor:
+            raise RuntimeError("pageInfo.hasNextPage es true pero no hay cursor en el último edge")
+        print(f"Productos página {page_n}: variantes acumuladas {len(results)}", flush=True)
+
+    return results
+
+
+def _fetch_inventory_map(
+    conn: http.client.HTTPSConnection,
+    api_version: str,
+    token: str,
+    item_ids: list[str],
+) -> dict[str, list[dict[str, Any]]]:
+    """Pass 2: map inventoryItemId → levels[]."""
+    unique = []
+    seen: set[str] = set()
+    for iid in item_ids:
+        if not iid or iid in seen:
+            continue
+        seen.add(iid)
+        unique.append(iid)
+
+    out: dict[str, list[dict[str, Any]]] = {}
+    total = len(unique)
+    if not total:
+        return out
+
+    for i in range(0, total, INVENTORY_BATCH_SIZE):
+        batch = unique[i : i + INVENTORY_BATCH_SIZE]
+        data = _ensure_ok(
+            post_graphql(
+                conn,
+                api_version,
+                token,
+                INVENTORY_NODES_QUERY,
+                {"ids": batch},
+            )
+        )
+        for node in data.get("nodes") or []:
+            if not node or not isinstance(node, dict):
+                continue
+            iid = node.get("id")
+            if not iid:
+                continue
+            out[str(iid)] = _levels_from_inventory_item(node)
+
+        done = min(i + INVENTORY_BATCH_SIZE, total)
+        print(f"Inventario {done}/{total} items", flush=True)
+        # Soft throttle to respect restore rate
+        time.sleep(0.15)
+
+    return out
 
 
 def get_all_product_variants(shop: str, token: str, api_version: str) -> list[dict[str, Any]]:
@@ -233,36 +321,19 @@ def get_all_product_variants(shop: str, token: str, api_version: str) -> list[di
     (productId / variantId / sku still present).
     """
     host = normalize_shop(shop)
-    results: list[dict[str, Any]] = []
-    cursor: str | None = None
-    has_next = True
-
     conn = http.client.HTTPSConnection(host, timeout=180)
     try:
-        while has_next:
-            payload = post_graphql(conn, api_version, token, QUERY, {"cursor": cursor})
-
-            if payload.get("errors"):
-                raise RuntimeError(json.dumps(payload["errors"], indent=2))
-
-            data = payload.get("data") or {}
-            products = data.get("products") or {}
-            edges = products.get("edges") or []
-
-            for edge in edges:
-                product = edge.get("node") or {}
-                for vnode in _collect_variant_edges(conn, api_version, token, product):
-                    results.append(_variant_record(product, vnode))
-
-            page = products.get("pageInfo") or {}
-            has_next = bool(page.get("hasNextPage"))
-            cursor = edges[-1].get("cursor") if edges else None
-            if has_next and not cursor:
-                raise RuntimeError("pageInfo.hasNextPage es true pero no hay cursor en el último edge")
+        results = _fetch_variants_pass(conn, api_version, token)
+        item_ids = [str(r.get("inventoryItemId") or "") for r in results]
+        inv_map = _fetch_inventory_map(conn, api_version, token, item_ids)
+        for r in results:
+            iid = str(r.get("inventoryItemId") or "")
+            r["inventory"] = inv_map.get(iid, [])
+            # keep payload lean for JSON consumers of nested form
+            r.pop("inventoryItemId", None)
+        return results
     finally:
         conn.close()
-
-    return results
 
 
 def flatten_variant_rows(variants: list[dict[str, Any]]) -> list[dict[str, Any]]:
