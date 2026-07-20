@@ -59,8 +59,9 @@ export const tools = [
   {
     slug: "shopify-variants",
     title: "Shopify: listar variantes",
-    description: "Inventario de productId / variantId / SKU de toda la tienda.",
-    help: "Recorre el catálogo Admin y lista todas las variantes. Sirve como insumo para metafields, cruces de SKU o dumps de tienda. Credenciales por formulario.",
+    description:
+      "Catálogo de variantes: SKU, barcode, location y stock por ubicación.",
+    help: "Recorre el catálogo Admin y lista cada variante con barcode, SKU y el stock disponible por location (una fila por variante×ubicación). Ves la tabla en pantalla y podés descargar Excel (.xlsx) o JSON. Credenciales por formulario. El token necesita scopes read_products y read_inventory.",
     category: "shopify",
     icon: "List",
   },

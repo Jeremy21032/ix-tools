@@ -314,7 +314,12 @@ router.post("/shopify-orders", upload.single("ordersFile"), async (req, res) => 
 });
 
 router.post("/shopify-variants", async (req, res) => {
-  await runShopifyScript("shopify_list_variants.py", ["-o", "variants.json"], req, res);
+  await runShopifyScript(
+    "shopify_list_variants.py",
+    ["-o", "variants.json", "--excel", "variants.xlsx"],
+    req,
+    res
+  );
 });
 
 router.post("/shopify-catalog-excel", async (req, res) => {

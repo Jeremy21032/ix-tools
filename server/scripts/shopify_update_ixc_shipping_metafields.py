@@ -191,11 +191,18 @@ def fetch_all_variant_rows(shop: str, token: str, api_version: str) -> list[dict
     import shopify_list_variants as slv
 
     raw = slv.get_all_product_variants(shop, token, api_version)
-    return [
-        {"variantId": str(r["variantId"]), "sku": r.get("sku"), "productId": r.get("productId")}
-        for r in raw
-        if r.get("variantId")
-    ]
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for r in raw:
+        vid = r.get("variantId")
+        if not vid:
+            continue
+        key = str(vid)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"variantId": key, "sku": r.get("sku"), "productId": r.get("productId")})
+    return out
 
 
 def collect_json_files(args: argparse.Namespace) -> list[Path]:
