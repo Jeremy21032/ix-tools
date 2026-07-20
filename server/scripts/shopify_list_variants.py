@@ -346,42 +346,49 @@ def flatten_variant_rows(variants: list[dict[str, Any]]) -> list[dict[str, Any]]
             or ""
         )
         base = {
-            "productId": v.get("productId") or "",
-            "variantId": v.get("variantId") or "",
-            "inventoryId": inventory_id,
             "productTitle": v.get("productTitle") or "",
             "sku": v.get("sku") or "",
             "barcode": v.get("barcode") or "",
+            "productId": v.get("productId") or "",
+            "variantId": v.get("variantId") or "",
+            "inventoryId": inventory_id,
         }
         levels = v.get("inventory") or []
         if not levels:
             flat.append(
                 {
-                    **base,
+                    "productTitle": base["productTitle"],
+                    "sku": base["sku"],
+                    "barcode": base["barcode"],
                     "locationId": "",
                     "location": "",
                     "stock": "",
                     "onHand": "",
+                    "productId": base["productId"],
+                    "variantId": base["variantId"],
+                    "inventoryId": base["inventoryId"],
                 }
             )
             continue
         for lvl in levels:
             flat.append(
                 {
-                    **base,
+                    "productTitle": base["productTitle"],
+                    "sku": base["sku"],
+                    "barcode": base["barcode"],
                     "locationId": lvl.get("locationId") or "",
                     "location": lvl.get("location") or "",
                     "stock": lvl.get("stock") if lvl.get("stock") != "" else "",
                     "onHand": lvl.get("onHand") if lvl.get("onHand") != "" else "",
+                    "productId": base["productId"],
+                    "variantId": base["variantId"],
+                    "inventoryId": base["inventoryId"],
                 }
             )
     return flat
 
 
 EXCEL_HEADERS = [
-    "productId",
-    "variantId",
-    "inventoryId",
     "productTitle",
     "sku",
     "barcode",
@@ -389,6 +396,9 @@ EXCEL_HEADERS = [
     "location",
     "stock",
     "onHand",
+    "productId",
+    "variantId",
+    "inventoryId",
 ]
 
 
@@ -412,7 +422,7 @@ def write_xlsx(path: Path, rows: list[dict[str, Any]]) -> None:
     last_row = max(1, len(rows) + 1)
     ws.auto_filter.ref = f"A1:{get_column_letter(len(EXCEL_HEADERS))}{last_row}"
 
-    widths = (42, 46, 46, 28, 16, 16, 36, 22, 10, 10)
+    widths = (28, 16, 16, 36, 22, 10, 10, 42, 46, 46)
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
