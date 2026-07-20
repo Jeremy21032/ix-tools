@@ -24,6 +24,7 @@ const {
   asTable,
   downloadUrl,
 } = require("../services/resultArtifacts");
+const { jsonToExcelJob } = require("../services/jsonToExcel");
 const {
   getLookupPath,
   readLookup,
@@ -561,6 +562,30 @@ router.post("/hierarchy-excel", upload.single("jsonFile"), async (req, res) => {
     return respondPythonJob(res, result, [".xlsx"]);
   } catch (e) {
     failResult(res, 500, e.message);
+  }
+});
+
+/** POST /api/tools/json-to-excel — array de objetos → Excel */
+router.post("/json-to-excel", upload.single("jsonFile"), async (req, res) => {
+  try {
+    let raw = req.body?.text;
+    if (req.file?.path) {
+      raw = fs.readFileSync(req.file.path, "utf8");
+    }
+    if (raw == null || String(raw).trim() === "") {
+      return failResult(res, 400, "Pegá JSON o subí un .json");
+    }
+    const parsed = typeof raw === "string" ? JSON.parse(String(raw)) : raw;
+    const job = jsonToExcelJob(parsed, { filename: "json_to_excel.xlsx", sheetName: "Datos" });
+    okResult(res, {
+      summary: job.summary,
+      logs: [`OK: ${job.rowCount} fila(s), ${job.columns.length} columna(s)`, `Columnas: ${job.columns.join(", ")}`],
+      downloadUrl: job.downloadUrl,
+      downloadName: job.downloadName,
+      table: job.table,
+    });
+  } catch (e) {
+    failResult(res, 400, e.message || String(e));
   }
 });
 

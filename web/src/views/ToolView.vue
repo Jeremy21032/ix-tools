@@ -256,6 +256,19 @@ const FORM_CONFIG = {
     ],
     multipart: true,
   },
+  "json-to-excel": {
+    fields: [
+      {
+        key: "text",
+        type: "textarea",
+        label: "JSON (array de objetos)",
+        rows: 14,
+        placeholder: '[\n  { "Sku": "MM900JBL96", "Mpn": "JBLT600BTNCBLUAM", "InStock": 0, "RealStockValue": true }\n]',
+      },
+      { key: "jsonFile", type: "file", label: "O subir .json" },
+    ],
+    multipart: true,
+  },
   "download-images": {
     fields: [
       { key: "urlsText", type: "textarea", label: "URLs (una por línea)", rows: 8 },

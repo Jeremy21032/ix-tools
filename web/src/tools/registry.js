@@ -163,6 +163,15 @@ export const tools = [
     icon: "GitNetwork",
   },
   {
+    slug: "json-to-excel",
+    title: "JSON → Excel",
+    description:
+      "Convierte un array JSON de objetos (Sku, Mpn, InStock…) a Excel descargable.",
+    help: "Pegá o subí un JSON tipo [{ \"Sku\": \"…\", \"Mpn\": \"…\", \"InStock\": 0 }]. Arma una hoja con una columna por key, muestra la tabla y deja descargar .xlsx. También acepta { data: [...] } u objetos anidados (se serializan a texto).",
+    category: "json",
+    icon: "Grid",
+  },
+  {
     slug: "download-images",
     title: "Descargar imágenes",
     description: "Baja un lote de imágenes desde una lista de URLs a disco del server.",
