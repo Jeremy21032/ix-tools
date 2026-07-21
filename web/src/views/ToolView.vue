@@ -83,6 +83,16 @@ const FORM_CONFIG = {
   "get-order-excel": {
     fields: [
       {
+        key: "environment",
+        type: "select",
+        label: "Ambiente",
+        default: "PROD",
+        options: [
+          { label: "PROD (integration.ixcomerciolabs.com)", value: "PROD" },
+          { label: "UAT (integration-uat.ixcomerciolabs.com)", value: "UAT" },
+        ],
+      },
+      {
         key: "ordersText",
         type: "textarea",
         label: "Órdenes (txt)",

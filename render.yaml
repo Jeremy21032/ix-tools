@@ -26,6 +26,18 @@ services:
         sync: false
       - key: SIGNATURE_APIM_KEY
         sync: false
+      - key: SIGNATURE_APIM_KEY_PROD
+        sync: false
+      - key: SIGNATURE_APIM_KEY_UAT
+        sync: false
+      - key: GET_ORDER_URL_PROD
+        sync: false
+      - key: GET_ORDER_URL_UAT
+        sync: false
+      - key: GET_ORDER_COOKIE_PROD
+        sync: false
+      - key: GET_ORDER_COOKIE_UAT
+        sync: false
       - key: PRODUCT_CATALOG_APIM_KEY
         sync: false
       - key: PRODUCT_CATALOG_CODE

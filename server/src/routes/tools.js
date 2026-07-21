@@ -213,8 +213,25 @@ router.post("/get-order-excel", upload.single("ordersFile"), async (req, res) =>
     }
     if (!ordersPath) return failResult(res, 400, "Se requiere ordersFile o ordersText");
 
+    const { resolveGetOrderEnv } = require("../services/getOrderEnv");
+    const envCfg = resolveGetOrderEnv(req.body?.environment || "PROD");
+    if (!envCfg.signatureApimKey) {
+      return failResult(
+        res,
+        400,
+        `Falta SIGNATURE_APIM_KEY_${envCfg.environment} (o SIGNATURE_APIM_KEY) en el .env`
+      );
+    }
+    if (!envCfg.getOrderUrl) {
+      return failResult(
+        res,
+        400,
+        `Falta GET_ORDER_URL_${envCfg.environment} (o GET_ORDER_URL) en el .env`
+      );
+    }
+
     const customersFile = req.body?.customersFile || CUSTOMER_LOOKUP;
-    const result = await runPython("fetch_orders_to_excel.py", [
+    const args = [
       "--orders-file",
       ordersPath,
       "--customers-file",
@@ -224,8 +241,28 @@ router.post("/get-order-excel", upload.single("ordersFile"), async (req, res) =>
       "--json-out",
       "report.json",
       "--yes",
-      ...(req.body?.debug === "true" || req.body?.debug === true ? ["--debug"] : []),
-    ]);
+      "--signature-url-template",
+      envCfg.signatureUrlTemplate,
+      "--signature-apim-key",
+      envCfg.signatureApimKey,
+      "--get-order-url",
+      envCfg.getOrderUrl,
+    ];
+    if (envCfg.getOrderCookie) {
+      args.push("--get-order-cookie", envCfg.getOrderCookie);
+    }
+    if (req.body?.debug === "true" || req.body?.debug === true) {
+      args.push("--debug");
+    }
+
+    const result = await runPython("fetch_orders_to_excel.py", args);
+    // Annotate logs with environment for UI clarity
+    result.logs = [
+      `Ambiente: ${envCfg.environment}`,
+      `Signature: ${envCfg.signatureUrlTemplate}`,
+      `GetOrder: ${envCfg.getOrderUrl}`,
+      ...(result.logs || []),
+    ];
     return respondPythonJob(res, result, [".xlsx", ".json"]);
   } catch (e) {
     failResult(res, 500, e.message);

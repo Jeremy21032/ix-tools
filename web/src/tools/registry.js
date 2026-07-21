@@ -25,7 +25,7 @@ export const tools = [
     title: "GetOrder → Excel",
     description:
       "Consulta getOrder firmado por customer: Pick/Pack, fechas y status. Tabla en pantalla + Excel.",
-    help: "Para armar o validar reportes de facturación / seguimiento. Con la lista de órdenes y el customer_lookup genera firma (iws-keys), llama getOrder de Apigee y te muestra PickNumber, PackNumber, StatusCode, etc. Útil frente a “¿tiene pack? ¿qué status tiene en IWS?”. Editá el lookup en la tool Customer lookup.",
+    help: "Para armar o validar reportes de facturación / seguimiento. Elegí ambiente PROD o UAT (iws-keys + getOrder). Con la lista de órdenes y el customer_lookup genera firma, llama getOrder y muestra PickNumber, PackNumber, StatusCode, etc. Editá el lookup en Customer lookup.",
     category: "orders",
     icon: "DocumentText",
   },
