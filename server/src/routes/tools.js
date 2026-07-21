@@ -221,18 +221,18 @@ router.post("/get-order-excel", upload.single("ordersFile"), async (req, res) =>
     const { resolveGetOrderEnv } = require("../services/getOrderEnv");
     const envCfg = resolveGetOrderEnv(req.body?.environment || "PROD");
     if (!envCfg.signatureApimKey) {
-      return failResult(
-        res,
-        400,
-        `Falta SIGNATURE_APIM_KEY_${envCfg.environment} (o SIGNATURE_APIM_KEY) en el .env`
-      );
+      const hint =
+        envCfg.environment === "UAT"
+          ? "Falta SIGNATURE_APIM_KEY_UAT en el .env (UAT no usa la key de PROD)"
+          : "Falta SIGNATURE_APIM_KEY_PROD o SIGNATURE_APIM_KEY en el .env";
+      return failResult(res, 400, hint);
     }
     if (!envCfg.getOrderUrl) {
-      return failResult(
-        res,
-        400,
-        `Falta GET_ORDER_URL_${envCfg.environment} (o GET_ORDER_URL) en el .env`
-      );
+      const hint =
+        envCfg.environment === "UAT"
+          ? "Falta GET_ORDER_URL_UAT en el .env (UAT no usa la URL de PROD)"
+          : "Falta GET_ORDER_URL_PROD o GET_ORDER_URL en el .env";
+      return failResult(res, 400, hint);
     }
 
     const customersFile = req.body?.customersFile || getLookupPath(envCfg.environment);
