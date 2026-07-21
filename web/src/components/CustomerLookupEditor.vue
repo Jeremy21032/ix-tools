@@ -5,6 +5,7 @@ import {
   NSpace,
   NAlert,
   NInput,
+  NSelect,
   NDataTable,
   NPopconfirm,
   NFormItem,
@@ -22,6 +23,12 @@ const jsonMode = ref(false);
 const jsonText = ref("");
 const meta = ref({ updatedAt: null, note: "", count: null, source: null });
 const note = ref("");
+const environment = ref("PROD");
+
+const envOptions = [
+  { label: "PROD", value: "PROD" },
+  { label: "UAT", value: "UAT" },
+];
 
 function blankRow() {
   return { key: `new-${Date.now()}-${Math.random()}`, code: "", country: "", customerId: "", type: "", channel: "" };
@@ -103,7 +110,7 @@ const freshness = computed(() => {
   if (!iso) {
     return {
       type: "warning",
-      title: "Sin fecha de actualización",
+      title: `[${environment.value}] Sin fecha de actualización`,
       detail: "Todavía no se guardó desde la UI (o no hay metadata). Guardá una vez para empezar a trackear.",
     };
   }
@@ -121,7 +128,7 @@ const freshness = computed(() => {
   if (days >= 90) type = "error";
   return {
     type,
-    title: `Última actualización: ${ageLabel}`,
+    title: `[${environment.value}] Última actualización: ${ageLabel}`,
     detail: `${local}${meta.value.source ? ` · origen: ${meta.value.source}` : ""}${
       meta.value.count != null ? ` · ${meta.value.count} customers` : ""
     }`,
@@ -131,7 +138,7 @@ const freshness = computed(() => {
 async function load() {
   loading.value = true;
   try {
-    const data = await apiGet("customer-lookup");
+    const data = await apiGet(`customer-lookup?environment=${encodeURIComponent(environment.value)}`);
     if (data.ok === false) throw new Error(data.error || "No se pudo cargar");
     rows.value = (data.rows || []).map((r, i) => ({
       key: `${r.code}-${i}`,
@@ -146,12 +153,22 @@ async function load() {
     note.value = data.meta?.note || "";
     jsonText.value = JSON.stringify(data.data || {}, null, 2);
     dirty.value = false;
-    message.success(`${data.count ?? rows.value.length} customer(s) cargados`);
+    message.success(`[${environment.value}] ${data.count ?? rows.value.length} customer(s)`);
   } catch (e) {
     message.error(e.message || "Error al cargar");
   } finally {
     loading.value = false;
   }
+}
+
+async function onEnvChange(value) {
+  if (dirty.value) {
+    const ok = window.confirm("Hay cambios sin guardar. ¿Cambiar de ambiente y descartarlos?");
+    if (!ok) return;
+  }
+  environment.value = value;
+  jsonMode.value = false;
+  await load();
 }
 
 function addRow() {
@@ -234,6 +251,7 @@ async function save() {
       return;
     }
     const data = await apiPost("customer-lookup", {
+      environment: environment.value,
       rows: payloadRows,
       note: note.value,
       source: "ui",
@@ -244,9 +262,10 @@ async function save() {
     }));
     meta.value = data.meta || {};
     note.value = data.meta?.note || note.value;
+    pathHint.value = data.path || pathHint.value;
     syncJsonFromRows();
     dirty.value = false;
-    message.success(`Guardado (${data.count} customers)`);
+    message.success(`[${environment.value}] Guardado (${data.count} customers)`);
   } catch (e) {
     message.error(e.message || "No se pudo guardar");
   } finally {
@@ -260,7 +279,7 @@ function downloadJson() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "customer_lookup.json";
+  a.download = `customer_lookup_${environment.value.toLowerCase()}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -270,6 +289,14 @@ onMounted(load);
 
 <template>
   <div>
+    <n-form-item label="Ambiente" style="margin-bottom: 0.75rem; max-width: 280px">
+      <n-select
+        :value="environment"
+        :options="envOptions"
+        @update:value="onEnvChange"
+      />
+    </n-form-item>
+
     <n-alert :type="freshness.type" :bordered="false" style="margin-bottom: 0.75rem">
       <div style="font-weight: 600">{{ freshness.title }}</div>
       <div style="margin-top: 0.2rem; line-height: 1.4">{{ freshness.detail }}</div>
@@ -279,8 +306,8 @@ onMounted(load);
     </n-alert>
 
     <n-alert type="info" :bordered="false" style="margin-bottom: 1rem">
-      Este archivo lo usa <strong>GetOrder → Excel</strong> para firmar (iws-keys) por customer.
-      Al <strong>Guardar</strong>, se actualiza la fecha para que en N días sepas si sigue vigente.
+      Hay un lookup por ambiente. <strong>GetOrder → Excel</strong> usa el archivo del ambiente
+      que elijas ahí (PROD o UAT). El <em>customer code</em> es el sufijo del order id (ej. JBLCOWL180).
       <span v-if="pathHint" style="display: block; margin-top: 0.35rem; opacity: 0.85; font-size: 0.85rem">
         Archivo: {{ pathHint }}
       </span>
@@ -289,7 +316,7 @@ onMounted(load);
     <n-form-item label="Nota del cambio (opcional)" style="margin-bottom: 0.75rem">
       <n-input
         v-model:value="note"
-        placeholder="Ej. Agregado JBLARWL180 — Julio 2026"
+        placeholder="Ej. Agregado JBLECB2B UAT — Julio 2026"
         @update:value="markDirty"
       />
     </n-form-item>
@@ -297,7 +324,7 @@ onMounted(load);
     <n-space style="margin-bottom: 0.85rem" :wrap="true">
       <n-button :loading="loading" secondary @click="load">Recargar</n-button>
       <n-button type="primary" :loading="saving" :disabled="!dirty && !jsonMode" @click="save">
-        Guardar{{ dirty ? " *" : "" }}
+        Guardar {{ environment }}{{ dirty ? " *" : "" }}
       </n-button>
       <n-button secondary @click="addRow">Agregar fila</n-button>
       <n-button secondary @click="toggleJson">
@@ -305,7 +332,7 @@ onMounted(load);
       </n-button>
       <n-button secondary @click="downloadJson">Descargar JSON</n-button>
       <span style="align-self: center; color: var(--muted, #667); font-size: 0.875rem">
-        {{ count }} customer(s){{ dirty ? " · sin guardar" : "" }}
+        {{ environment }} · {{ count }} customer(s){{ dirty ? " · sin guardar" : "" }}
       </span>
     </n-space>
 
