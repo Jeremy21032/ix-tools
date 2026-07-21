@@ -323,6 +323,21 @@ router.post("/shopify-variants", async (req, res) => {
   );
 });
 
+router.post("/shopify-product-events", async (req, res) => {
+  const actionsRaw = req.body?.actions;
+  let actions = [];
+  if (Array.isArray(actionsRaw)) {
+    actions = actionsRaw.map(String).map((s) => s.trim()).filter(Boolean);
+  } else if (typeof actionsRaw === "string" && actionsRaw.trim()) {
+    actions = actionsRaw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+  }
+  const extra = ["-o", "product_events.csv", "--excel", "product_events.xlsx"];
+  if (actions.length) {
+    extra.push("--actions", ...actions);
+  }
+  await runShopifyScript("shopify_product_events.py", extra, req, res);
+});
+
 router.post("/shopify-catalog-excel", async (req, res) => {
   await runShopifyScript("shopify_products_variants_excel.py", ["-o", "catalog.xlsx"], req, res);
 });

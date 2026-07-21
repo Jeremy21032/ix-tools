@@ -140,6 +140,30 @@ const FORM_CONFIG = {
       },
     ],
   },
+  "shopify-product-events": {
+    fields: [
+      {
+        key: "shopifyStore",
+        type: "text",
+        label: "Shopify store",
+        placeholder: "mi-tienda.myshopify.com",
+        persist: "ix-shopify-store",
+      },
+      {
+        key: "shopifyToken",
+        type: "password",
+        label: "Access token (shpat_…)",
+        placeholder: "shpat_…",
+        persist: "ix-shopify-token",
+      },
+      {
+        key: "actions",
+        type: "text",
+        label: "Acciones (opcional, separadas por espacio)",
+        placeholder: "create update destroy publish unpublish",
+      },
+    ],
+  },
   "shopify-catalog-excel": {
     fields: [
       {

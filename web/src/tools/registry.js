@@ -66,6 +66,15 @@ export const tools = [
     icon: "List",
   },
   {
+    slug: "shopify-product-events",
+    title: "Shopify: eventos de productos",
+    description:
+      "Historial de create/update/destroy/publish de productos (no inventario).",
+    help: "Consulta la Admin GraphQL events con subject_type PRODUCT: altas, cambios de estado (draft/active), publish/unpublish y eliminaciones. Exporta CSV/Excel. Importante: Shopify NO expone por API el historial de ajustes de stock; eso solo sale del reporte Inventory adjustment changes del admin. Token con read_products (y permisos de events).",
+    category: "shopify",
+    icon: "Pulse",
+  },
+  {
     slug: "shopify-catalog-excel",
     title: "Shopify: catálogo Excel",
     description:

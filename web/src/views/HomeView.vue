@@ -22,6 +22,7 @@ import {
   IdCardOutline,
   PeopleOutline,
   ReaderOutline,
+  PulseOutline,
 } from "@vicons/ionicons5";
 import { tools, CATEGORIES } from "../tools/registry";
 
@@ -45,6 +46,7 @@ const ICONS = {
   IdCard: IdCardOutline,
   People: PeopleOutline,
   Reader: ReaderOutline,
+  Pulse: PulseOutline,
 };
 
 const route = useRoute();
