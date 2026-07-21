@@ -26,6 +26,7 @@ const {
 } = require("../services/resultArtifacts");
 const { jsonToExcelJob } = require("../services/jsonToExcel");
 const {
+  normalizeEnv,
   getLookupPath,
   readLookup,
   readMeta,
@@ -36,7 +37,6 @@ const {
 } = require("../services/customerLookup");
 
 const router = express.Router();
-const CUSTOMER_LOOKUP = getLookupPath();
 
 function okResult(res, payload) {
   res.json({ ok: true, ...payload });
@@ -140,15 +140,17 @@ router.get("/order-status-resender/meta", (_req, res) => {
   });
 });
 
-/** GET /api/tools/customer-lookup — leer customer_lookup.json */
-router.get("/customer-lookup", (_req, res) => {
+/** GET /api/tools/customer-lookup?environment=PROD|UAT */
+router.get("/customer-lookup", (req, res) => {
   try {
-    const data = readLookup();
-    const meta = readMeta();
+    const environment = normalizeEnv(req.query?.environment || "PROD");
+    const data = readLookup(environment);
+    const meta = readMeta(environment);
     okResult(res, {
       data,
       rows: lookupToRows(data),
-      path: CUSTOMER_LOOKUP,
+      path: getLookupPath(environment),
+      environment,
       count: Object.keys(data).length,
       meta,
     });
@@ -157,9 +159,10 @@ router.get("/customer-lookup", (_req, res) => {
   }
 });
 
-/** POST /api/tools/customer-lookup — guardar (body.data objeto o body.rows tabla) */
+/** POST /api/tools/customer-lookup — guardar (body.environment + data/rows) */
 router.post("/customer-lookup", (req, res) => {
   try {
+    const environment = normalizeEnv(req.body?.environment || "PROD");
     let payload = req.body?.data;
     if (payload == null && Array.isArray(req.body?.rows)) {
       payload = rowsToLookup(req.body.rows);
@@ -168,6 +171,7 @@ router.post("/customer-lookup", (req, res) => {
       payload = JSON.parse(String(req.body.text));
     }
     const result = writeLookup(payload, {
+      environment,
       note: req.body?.note,
       source: req.body?.source || "ui",
     });
@@ -177,10 +181,11 @@ router.post("/customer-lookup", (req, res) => {
       rows: lookupToRows(result.data),
       count: result.count,
       path: result.path,
+      environment: result.environment,
       meta: result.meta,
       summary: { success: result.count, errors: 0 },
       logs: [
-        `Guardado ${result.count} customer(s) en customer_lookup.json`,
+        `Guardado ${result.count} customer(s) [${result.environment}]`,
         result.meta?.updatedAt ? `Última actualización: ${result.meta.updatedAt}` : "",
       ].filter(Boolean),
     });
@@ -230,7 +235,7 @@ router.post("/get-order-excel", upload.single("ordersFile"), async (req, res) =>
       );
     }
 
-    const customersFile = req.body?.customersFile || CUSTOMER_LOOKUP;
+    const customersFile = req.body?.customersFile || getLookupPath(envCfg.environment);
     const args = [
       "--orders-file",
       ordersPath,

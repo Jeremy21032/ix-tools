@@ -34,7 +34,7 @@ export const tools = [
     title: "Customer lookup",
     description:
       "Editá el diccionario customer → country / customerId / type / channel usado por GetOrder.",
-    help: "Mantiene server/data/customer_lookup.json. Cada clave es el código de customer (sufijo del order id, ej. JBLCOWL180). type es el ID de iws-keys para firmar getOrder. Cambios se aplican de inmediato a GetOrder → Excel en esta instancia.",
+    help: "Mantiene customer_lookup_prod.json y customer_lookup_uat.json. Cada clave es el código de customer (sufijo del order id). GetOrder usa el lookup del ambiente que elijas (PROD/UAT). type es el ID de iws-keys.",
     category: "orders",
     icon: "People",
   },

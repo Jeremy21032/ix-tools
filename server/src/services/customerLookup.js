@@ -1,12 +1,22 @@
 const fs = require("fs");
 const path = require("path");
 
-const LOOKUP_PATH = path.join(__dirname, "../../data/customer_lookup.json");
-const META_PATH = path.join(__dirname, "../../data/customer_lookup.meta.json");
+const DATA_DIR = path.join(__dirname, "../../data");
+const LEGACY_PATH = path.join(DATA_DIR, "customer_lookup.json");
 const REQUIRED = ["country", "customerId", "type", "channel"];
 
-function getLookupPath() {
-  return LOOKUP_PATH;
+function normalizeEnv(environment) {
+  return String(environment || "PROD").toUpperCase() === "UAT" ? "UAT" : "PROD";
+}
+
+function getLookupPath(environment = "PROD") {
+  const env = normalizeEnv(environment);
+  return path.join(DATA_DIR, `customer_lookup_${env.toLowerCase()}.json`);
+}
+
+function getMetaPath(environment = "PROD") {
+  const env = normalizeEnv(environment);
+  return path.join(DATA_DIR, `customer_lookup_${env.toLowerCase()}.meta.json`);
 }
 
 function fileMtimeIso(filePath) {
@@ -18,17 +28,21 @@ function fileMtimeIso(filePath) {
   }
 }
 
-function readMeta() {
+function readMeta(environment = "PROD") {
+  const env = normalizeEnv(environment);
+  const metaPath = getMetaPath(env);
+  const lookupPath = getLookupPath(env);
   let meta = {};
-  if (fs.existsSync(META_PATH)) {
+  if (fs.existsSync(metaPath)) {
     try {
-      meta = JSON.parse(fs.readFileSync(META_PATH, "utf8")) || {};
+      meta = JSON.parse(fs.readFileSync(metaPath, "utf8")) || {};
     } catch {
       meta = {};
     }
   }
-  const mtime = fileMtimeIso(LOOKUP_PATH);
+  const mtime = fileMtimeIso(lookupPath);
   return {
+    environment: env,
     updatedAt: meta.updatedAt || mtime || null,
     note: typeof meta.note === "string" ? meta.note : "",
     count: meta.count != null ? Number(meta.count) : null,
@@ -36,28 +50,39 @@ function readMeta() {
   };
 }
 
-function writeMeta({ count, note, source = "ui" }) {
-  const prev = readMeta();
+function writeMeta(environment, { count, note, source = "ui" } = {}) {
+  const env = normalizeEnv(environment);
+  const metaPath = getMetaPath(env);
+  const prev = readMeta(env);
   const meta = {
+    environment: env,
     updatedAt: new Date().toISOString(),
     count: count != null ? count : prev.count,
     note: note != null ? String(note) : prev.note || "",
     source,
   };
-  const dir = path.dirname(META_PATH);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(META_PATH, JSON.stringify(meta, null, 2) + "\n", "utf8");
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2) + "\n", "utf8");
   return meta;
 }
 
-function readLookup() {
-  if (!fs.existsSync(LOOKUP_PATH)) {
+function readLookup(environment = "PROD") {
+  const env = normalizeEnv(environment);
+  const lookupPath = getLookupPath(env);
+
+  // Migrate legacy single file → PROD once
+  if (env === "PROD" && !fs.existsSync(lookupPath) && fs.existsSync(LEGACY_PATH)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.copyFileSync(LEGACY_PATH, lookupPath);
+  }
+
+  if (!fs.existsSync(lookupPath)) {
     return {};
   }
-  const raw = fs.readFileSync(LOOKUP_PATH, "utf8");
+  const raw = fs.readFileSync(lookupPath, "utf8");
   const data = JSON.parse(raw);
   if (!data || typeof data !== "object" || Array.isArray(data)) {
-    throw new Error("customer_lookup.json debe ser un objeto { customerCode: { ... } }");
+    throw new Error("customer_lookup debe ser un objeto { customerCode: { ... } }");
   }
   return data;
 }
@@ -103,7 +128,6 @@ function validateLookup(input) {
   return { ok: true, data };
 }
 
-/** Convert UI rows → lookup object */
 function rowsToLookup(rows) {
   const obj = {};
   for (const row of rows || []) {
@@ -131,30 +155,38 @@ function lookupToRows(data) {
     }));
 }
 
-function writeLookup(data, { note, source = "ui" } = {}) {
+function writeLookup(data, { environment = "PROD", note, source = "ui" } = {}) {
+  const env = normalizeEnv(environment);
   const validated = validateLookup(data);
   if (!validated.ok) return validated;
 
-  const dir = path.dirname(LOOKUP_PATH);
-  fs.mkdirSync(dir, { recursive: true });
+  const lookupPath = getLookupPath(env);
+  fs.mkdirSync(DATA_DIR, { recursive: true });
   const pretty = JSON.stringify(validated.data, null, 2) + "\n";
-  const tmp = LOOKUP_PATH + ".tmp";
+  const tmp = lookupPath + ".tmp";
   fs.writeFileSync(tmp, pretty, "utf8");
-  fs.renameSync(tmp, LOOKUP_PATH);
+  fs.renameSync(tmp, lookupPath);
+
+  // Keep legacy alias for PROD so older scripts still find a file
+  if (env === "PROD") {
+    fs.writeFileSync(LEGACY_PATH, pretty, "utf8");
+  }
 
   const count = Object.keys(validated.data).length;
-  const meta = writeMeta({ count, note, source });
+  const meta = writeMeta(env, { count, note, source });
 
   return {
     ok: true,
     data: validated.data,
-    path: LOOKUP_PATH,
+    path: lookupPath,
+    environment: env,
     count,
     meta,
   };
 }
 
 module.exports = {
+  normalizeEnv,
   getLookupPath,
   readLookup,
   readMeta,
