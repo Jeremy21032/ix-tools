@@ -36,6 +36,7 @@ query getProductsWithVariants($cursor: String) {
       node {
         id
         title
+        status
         variants(first: 50) {
           pageInfo {
             hasNextPage
@@ -66,6 +67,7 @@ query ProductVariantsPage($id: ID!, $cursor: String!) {
   product(id: $id) {
     id
     title
+    status
     variants(first: 50, after: $cursor) {
       pageInfo {
         hasNextPage
@@ -249,6 +251,7 @@ def _fetch_variants_pass(
                     {
                         "productId": product.get("id"),
                         "productTitle": product.get("title") or "",
+                        "status": product.get("status") or "",
                         "variantId": vnode.get("id"),
                         "sku": vnode.get("sku") or "",
                         "barcode": vnode.get("barcode") or "",
@@ -352,6 +355,7 @@ def flatten_variant_rows(variants: list[dict[str, Any]]) -> list[dict[str, Any]]
             "productId": v.get("productId") or "",
             "variantId": v.get("variantId") or "",
             "inventoryId": inventory_id,
+            "status": v.get("status") or "",
         }
         levels = v.get("inventory") or []
         if not levels:
@@ -367,6 +371,7 @@ def flatten_variant_rows(variants: list[dict[str, Any]]) -> list[dict[str, Any]]
                     "productId": base["productId"],
                     "variantId": base["variantId"],
                     "inventoryId": base["inventoryId"],
+                    "status": base["status"],
                 }
             )
             continue
@@ -383,6 +388,7 @@ def flatten_variant_rows(variants: list[dict[str, Any]]) -> list[dict[str, Any]]
                     "productId": base["productId"],
                     "variantId": base["variantId"],
                     "inventoryId": base["inventoryId"],
+                    "status": base["status"],
                 }
             )
     return flat
@@ -399,6 +405,7 @@ EXCEL_HEADERS = [
     "productId",
     "variantId",
     "inventoryId",
+    "status",
 ]
 
 
@@ -422,7 +429,7 @@ def write_xlsx(path: Path, rows: list[dict[str, Any]]) -> None:
     last_row = max(1, len(rows) + 1)
     ws.auto_filter.ref = f"A1:{get_column_letter(len(EXCEL_HEADERS))}{last_row}"
 
-    widths = (28, 16, 16, 36, 22, 10, 10, 42, 46, 46)
+    widths = (28, 16, 16, 36, 22, 10, 10, 42, 46, 46, 12)
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
