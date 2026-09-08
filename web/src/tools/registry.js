@@ -60,8 +60,8 @@ export const tools = [
     slug: "shopify-variants",
     title: "Shopify: listar variantes",
     description:
-      "Variantes con GIDs (Product / Variant / InventoryItem), SKU, barcode y stock por location.",
-    help: "Recorre el catálogo Admin y lista cada variante con productId, variantId e inventoryId (GIDs Shopify), barcode, SKU y stock por location. Una fila por variante×ubicación. Descargá Excel o JSON. Token: read_products + read_inventory.",
+      "Variantes con GIDs, SKU, barcode, stock por location y todos los metafields.",
+    help: "Recorre el catálogo Admin y lista cada variante con productId, variantId e inventoryId (GIDs Shopify), barcode, SKU, stock por location y todos los metafields (cualquier namespace) en JSON. Una fila por variante×ubicación. Descargá Excel o JSON. Token: read_products + read_inventory.",
     category: "shopify",
     icon: "List",
   },
@@ -78,8 +78,8 @@ export const tools = [
     slug: "shopify-catalog-excel",
     title: "Shopify: catálogo Excel",
     description:
-      "Export comercial: productos/variantes + metafields IXC de shipping a Excel.",
-    help: "Genera un Excel del catálogo con columnas de metafields de envío IXC (largo, ancho, peso, etc.). Ideal para revisar o auditar qué tiene cargado cada variante en la tienda.",
+      "Export comercial: productos/variantes + todos los metafields de cada variante a Excel.",
+    help: "Genera un Excel del catálogo con columnas IXC de envío (largo, ancho, peso, etc.) y una columna JSON con todos los metafields de cada variante (cualquier namespace). Ideal para revisar o auditar qué tiene cargado cada variante en la tienda.",
     category: "shopify",
     icon: "Grid",
   },

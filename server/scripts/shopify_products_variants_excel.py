@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Exporta todos los productos y sus variantes desde Shopify Admin GraphQL a un Excel (.xlsx)
-para el área comercial, incluyendo metafields del namespace IXC (shipping y el resto en JSON).
+para el área comercial, incluyendo todos los metafields de cada variante y columnas IXC de shipping.
 
 Requiere: pip install openpyxl
 
@@ -41,15 +41,42 @@ IXC_SHIPPING_KEYS = [
 ]
 
 METAFIELDS_FRAGMENT = """
-              metafields(first: 40, namespace: "IXC") {
+              metafields(first: 50) {
+                pageInfo {
+                  hasNextPage
+                  endCursor
+                }
                 edges {
                   node {
+                    namespace
                     key
                     value
                     type
                   }
                 }
               }
+"""
+
+VARIANT_METAFIELDS_PAGE_QUERY = """
+query VariantMetafieldsPage($id: ID!, $cursor: String!) {
+  productVariant(id: $id) {
+    id
+    metafields(first: 250, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      edges {
+        node {
+          namespace
+          key
+          value
+          type
+        }
+      }
+    }
+  }
+}
 """
 
 PRODUCTS_PAGE_QUERY = """
@@ -147,30 +174,51 @@ HEADERS_ES = [
     "IXC shipping_heightEach",
     "IXC shipping_weightEach",
     "IXC shipping_volumeEach",
-    "IXC otros metafields (JSON)",
+    "Todos los metafields (JSON)",
 ]
 
 
-def ixc_metafield_map(vnode: dict[str, Any]) -> dict[str, str]:
-    out: dict[str, str] = {}
-    block = vnode.get("metafields") or {}
-    for edge in block.get("edges") or []:
+def metafield_nodes_from_block(block: dict[str, Any] | None) -> list[dict[str, Any]]:
+    nodes: list[dict[str, Any]] = []
+    for edge in (block or {}).get("edges") or []:
         if not isinstance(edge, dict):
             continue
         node = edge.get("node") or {}
+        if node.get("key"):
+            nodes.append(node)
+    return nodes
+
+
+def metafield_nodes(vnode: dict[str, Any]) -> list[dict[str, Any]]:
+    return metafield_nodes_from_block(vnode.get("metafields") if isinstance(vnode, dict) else None)
+
+
+def ixc_shipping_map(nodes: list[dict[str, Any]]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for node in nodes:
+        if str(node.get("namespace") or "") != "IXC":
+            continue
         k = node.get("key")
         if k:
             out[str(k)] = node.get("value") if node.get("value") is not None else ""
     return out
 
 
-def ixc_metafield_columns(m: dict[str, str]) -> list[Any]:
-    cells: list[Any] = []
-    for key in IXC_SHIPPING_KEYS:
-        cells.append(m.get(key, ""))
-    rest = {k: v for k, v in m.items() if k not in IXC_SHIPPING_KEYS}
-    cells.append(json.dumps(rest, ensure_ascii=False, separators=(",", ":")) if rest else "")
-    return cells
+def ixc_shipping_columns(m: dict[str, str]) -> list[Any]:
+    return [m.get(key, "") for key in IXC_SHIPPING_KEYS]
+
+
+def all_metafields_json(nodes: list[dict[str, Any]]) -> str:
+    payload = [
+        {
+            "namespace": n.get("namespace") or "",
+            "key": n.get("key"),
+            "type": n.get("type") or "",
+            "value": n.get("value") if n.get("value") is not None else "",
+        }
+        for n in nodes
+    ]
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")) if payload else ""
 
 
 def gid_numeric(gid: str | None) -> str:
@@ -193,7 +241,8 @@ def variant_to_row(product: dict[str, Any], vnode: dict[str, Any]) -> list[Any]:
     else:
         inv_str = int(inv) if isinstance(inv, (int, float)) else str(inv)
 
-    ixm = ixc_metafield_map(vnode)
+    mnodes = metafield_nodes(vnode)
+    ixm = ixc_shipping_map(mnodes)
 
     return [
         gid_numeric(product.get("id")),
@@ -212,7 +261,8 @@ def variant_to_row(product: dict[str, Any], vnode: dict[str, Any]) -> list[Any]:
         vnode.get("price") or "",
         vnode.get("compareAtPrice") or "",
         inv_str,
-        *ixc_metafield_columns(ixm),
+        *ixc_shipping_columns(ixm),
+        all_metafields_json(mnodes),
     ]
 
 
@@ -262,7 +312,51 @@ def fetch_all_variant_nodes_for_product(
         pinfo = vroot.get("pageInfo") or {}
         vcursor = pinfo.get("endCursor")
 
+    for vnode in nodes:
+        ensure_all_variant_metafields(conn, api_version, token, vnode)
+
     return nodes
+
+
+def ensure_all_variant_metafields(
+    conn: http.client.HTTPSConnection,
+    api_version: str,
+    token: str,
+    vnode: dict[str, Any],
+) -> None:
+    """Une páginas extra de metafields en vnode['metafields']['edges']."""
+    variant_id = vnode.get("id")
+    block = vnode.get("metafields") if isinstance(vnode.get("metafields"), dict) else {}
+    if not block:
+        vnode["metafields"] = {"edges": [], "pageInfo": {}}
+        return
+
+    pinfo = block.get("pageInfo") or {}
+    cursor = pinfo.get("endCursor")
+    edges = list(block.get("edges") or [])
+
+    while variant_id and pinfo.get("hasNextPage") and cursor:
+        time.sleep(0.1)
+        resp = post_graphql(
+            conn,
+            api_version,
+            token,
+            VARIANT_METAFIELDS_PAGE_QUERY,
+            {"id": variant_id, "cursor": cursor},
+        )
+        if resp.get("errors"):
+            raise RuntimeError(json.dumps(resp["errors"], indent=2))
+        data = resp.get("data") or {}
+        pv = data.get("productVariant") or {}
+        nxt = pv.get("metafields") or {}
+        extra = nxt.get("edges") or []
+        if not extra:
+            break
+        edges.extend(extra)
+        pinfo = nxt.get("pageInfo") or {}
+        cursor = pinfo.get("endCursor")
+
+    vnode["metafields"] = {"edges": edges, "pageInfo": pinfo}
 
 
 def iter_product_variant_rows(

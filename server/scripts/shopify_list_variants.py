@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Lista todas las variantes de productos vía Shopify Admin GraphQL (paginado),
-incluyendo barcode e inventario por location.
+incluyendo barcode, inventario por location y todos los metafields de cada variante.
 
 El inventario se pide en una segunda pasada por lotes (nodes) para no superar
 el costo máximo por query de Shopify (1000).
@@ -115,6 +115,55 @@ query InventoryLevelsByItems($ids: [ID!]!) {
 
 # ~8 items × inventoryLevels(first:25) stays safely under max cost 1000
 INVENTORY_BATCH_SIZE = 8
+
+VARIANT_METAFIELDS_NODES_QUERY = """
+query VariantMetafieldsByIds($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on ProductVariant {
+      id
+      metafields(first: 50) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            namespace
+            key
+            value
+            type
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+VARIANT_METAFIELDS_PAGE_QUERY = """
+query VariantMetafieldsPage($id: ID!, $cursor: String!) {
+  productVariant(id: $id) {
+    id
+    metafields(first: 250, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      edges {
+        node {
+          namespace
+          key
+          value
+          type
+        }
+      }
+    }
+  }
+}
+"""
+
+# Nested metafields(first:50) on a handful of variants stays under cost 1000
+METAFIELDS_BATCH_SIZE = 15
 
 
 def normalize_shop(shop: str) -> str:
@@ -270,6 +319,101 @@ def _fetch_variants_pass(
     return results
 
 
+def _metafield_records(block: dict[str, Any] | None) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for edge in (block or {}).get("edges") or []:
+        node = (edge or {}).get("node") or {}
+        key = node.get("key")
+        if not key:
+            continue
+        rows.append(
+            {
+                "namespace": node.get("namespace") or "",
+                "key": key,
+                "type": node.get("type") or "",
+                "value": node.get("value") if node.get("value") is not None else "",
+            }
+        )
+    return rows
+
+
+def _complete_variant_metafields(
+    conn: http.client.HTTPSConnection,
+    api_version: str,
+    token: str,
+    variant_id: str,
+    block: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    rows = _metafield_records(block)
+    page = (block or {}).get("pageInfo") or {}
+    cursor = page.get("endCursor")
+    while variant_id and page.get("hasNextPage") and cursor:
+        time.sleep(0.1)
+        data = _ensure_ok(
+            post_graphql(
+                conn,
+                api_version,
+                token,
+                VARIANT_METAFIELDS_PAGE_QUERY,
+                {"id": variant_id, "cursor": cursor},
+            )
+        )
+        nxt = (data.get("productVariant") or {}).get("metafields") or {}
+        extra = _metafield_records(nxt)
+        if not extra:
+            break
+        rows.extend(extra)
+        page = nxt.get("pageInfo") or {}
+        cursor = page.get("endCursor")
+    return rows
+
+
+def _fetch_metafields_map(
+    conn: http.client.HTTPSConnection,
+    api_version: str,
+    token: str,
+    variant_ids: list[str],
+) -> dict[str, list[dict[str, Any]]]:
+    unique: list[str] = []
+    seen: set[str] = set()
+    for vid in variant_ids:
+        if not vid or vid in seen:
+            continue
+        seen.add(vid)
+        unique.append(vid)
+
+    out: dict[str, list[dict[str, Any]]] = {}
+    total = len(unique)
+    if not total:
+        return out
+
+    for i in range(0, total, METAFIELDS_BATCH_SIZE):
+        batch = unique[i : i + METAFIELDS_BATCH_SIZE]
+        data = _ensure_ok(
+            post_graphql(
+                conn,
+                api_version,
+                token,
+                VARIANT_METAFIELDS_NODES_QUERY,
+                {"ids": batch},
+            )
+        )
+        for node in data.get("nodes") or []:
+            if not node or not isinstance(node, dict):
+                continue
+            vid = node.get("id")
+            if not vid:
+                continue
+            out[str(vid)] = _complete_variant_metafields(
+                conn, api_version, token, str(vid), node.get("metafields")
+            )
+        done = min(i + METAFIELDS_BATCH_SIZE, total)
+        print(f"Metafields {done}/{total} variantes", flush=True)
+        time.sleep(0.15)
+
+    return out
+
+
 def _fetch_inventory_map(
     conn: http.client.HTTPSConnection,
     api_version: str,
@@ -329,11 +473,14 @@ def get_all_product_variants(shop: str, token: str, api_version: str) -> list[di
         results = _fetch_variants_pass(conn, api_version, token)
         item_ids = [str(r.get("inventoryItemId") or "") for r in results]
         inv_map = _fetch_inventory_map(conn, api_version, token, item_ids)
+        variant_ids = [str(r.get("variantId") or "") for r in results]
+        mf_map = _fetch_metafields_map(conn, api_version, token, variant_ids)
         for r in results:
             iid = str(r.get("inventoryItemId") or "")
             r["inventory"] = inv_map.get(iid, [])
             # Expose Shopify GIDs explicitly for ops / metafields tooling
             r["inventoryId"] = iid
+            r["metafields"] = mf_map.get(str(r.get("variantId") or ""), [])
         return results
     finally:
         conn.close()
@@ -348,6 +495,12 @@ def flatten_variant_rows(variants: list[dict[str, Any]]) -> list[dict[str, Any]]
             or v.get("inventoryItemId")
             or ""
         )
+        metafields = v.get("metafields") or []
+        metafields_json = (
+            json.dumps(metafields, ensure_ascii=False, separators=(",", ":"))
+            if metafields
+            else ""
+        )
         base = {
             "productTitle": v.get("productTitle") or "",
             "sku": v.get("sku") or "",
@@ -356,6 +509,7 @@ def flatten_variant_rows(variants: list[dict[str, Any]]) -> list[dict[str, Any]]
             "variantId": v.get("variantId") or "",
             "inventoryId": inventory_id,
             "status": v.get("status") or "",
+            "metafields": metafields_json,
         }
         levels = v.get("inventory") or []
         if not levels:
@@ -372,6 +526,7 @@ def flatten_variant_rows(variants: list[dict[str, Any]]) -> list[dict[str, Any]]
                     "variantId": base["variantId"],
                     "inventoryId": base["inventoryId"],
                     "status": base["status"],
+                    "metafields": base["metafields"],
                 }
             )
             continue
@@ -389,6 +544,7 @@ def flatten_variant_rows(variants: list[dict[str, Any]]) -> list[dict[str, Any]]
                     "variantId": base["variantId"],
                     "inventoryId": base["inventoryId"],
                     "status": base["status"],
+                    "metafields": base["metafields"],
                 }
             )
     return flat
@@ -406,6 +562,7 @@ EXCEL_HEADERS = [
     "variantId",
     "inventoryId",
     "status",
+    "metafields",
 ]
 
 
@@ -429,7 +586,7 @@ def write_xlsx(path: Path, rows: list[dict[str, Any]]) -> None:
     last_row = max(1, len(rows) + 1)
     ws.auto_filter.ref = f"A1:{get_column_letter(len(EXCEL_HEADERS))}{last_row}"
 
-    widths = (28, 16, 16, 36, 22, 10, 10, 42, 46, 46, 12)
+    widths = (28, 16, 16, 36, 22, 10, 10, 42, 46, 46, 12, 48)
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
