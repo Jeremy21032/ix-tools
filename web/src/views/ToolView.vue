@@ -62,6 +62,7 @@ const FORM_CONFIG = {
           { label: "PACK", value: "PACK" },
           { label: "PICK", value: "PICK" },
           { label: "READY_TO_DELIVER", value: "READY_TO_DELIVER" },
+          { label: "PICKUP_READY", value: "PICKUP_READY" },
           { label: "PROVIDER_ORDER_RELEASED", value: "PROVIDER_ORDER_RELEASED" },
         ],
       },

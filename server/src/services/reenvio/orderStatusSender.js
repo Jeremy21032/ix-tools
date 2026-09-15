@@ -49,6 +49,12 @@ const EVENT_TYPE_MAP = {
     subStatus: "Lista para despacho Operador logistico",
     entityStatus: "READY_TO_DELIVER",
   },
+  PICKUP_READY: {
+    statusCode: "PICKUP_READY",
+    statusDescription: "ORDEN EN PROCESO",
+    subStatus: "Lista para retiro",
+    entityStatus: "PICKUP_READY",
+  },
   PROVIDER_ORDER_RELEASED: {
     statusCode: "PROVIDER_ORDER_RELEASED",
     statusDescription: "ORDEN EN PROCESO",
