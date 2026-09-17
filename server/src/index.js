@@ -49,7 +49,8 @@ app.get("/api/downloads/:jobId/*", (req, res) => {
     return res.status(400).json({ ok: false, error: "path inválido" });
   }
   if (!fs.existsSync(full)) return res.status(404).json({ ok: false, error: "archivo no encontrado" });
-  res.download(full);
+  res.setHeader("Cache-Control", "no-store");
+  return res.download(full, path.basename(full));
 });
 
 const webDist = path.join(__dirname, "../../web/dist");

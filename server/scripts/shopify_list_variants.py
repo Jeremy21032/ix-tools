@@ -650,27 +650,18 @@ EXCEL_HEADERS = [
 def write_xlsx(path: Path, rows: list[dict[str, Any]]) -> None:
     try:
         from openpyxl import Workbook
-        from openpyxl.utils import get_column_letter
     except ImportError as e:
         raise SystemExit(
             "Falta openpyxl. Instale con: py -3 -m pip install openpyxl\n" + str(e)
         ) from e
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Variantes"
+    wb = Workbook(write_only=True)
+    ws = wb.create_sheet("Variantes")
     ws.append(EXCEL_HEADERS)
-    for r in rows:
+    for i, r in enumerate(rows, start=1):
         ws.append([r.get(h, "") for h in EXCEL_HEADERS])
-
-    ws.freeze_panes = "A2"
-    last_row = max(1, len(rows) + 1)
-    ws.auto_filter.ref = f"A1:{get_column_letter(len(EXCEL_HEADERS))}{last_row}"
-
-    widths = (28, 16, 16, 36, 22, 10, 10, 42, 46, 46, 12, 48)
-    for i, w in enumerate(widths, start=1):
-        ws.column_dimensions[get_column_letter(i)].width = w
-
+        if i % 5000 == 0:
+            progress(f"Excel {i}/{len(rows)} filas")
     path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(path)
 
@@ -740,16 +731,16 @@ def main() -> int:
     flat = flatten_variant_rows(data)
     progress(f"{len(data)} variantes · {len(flat)} filas (variante × location)")
 
+    if args.excel:
+        step("Guardando Excel")
+        write_xlsx(args.excel, flat)
+        progress(str(args.excel.resolve()))
+
     if args.output:
         step("Guardando JSON")
         payload = data if args.nested else flat
         args.output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         progress(str(args.output.resolve()))
-
-    if args.excel:
-        step("Guardando Excel")
-        write_xlsx(args.excel, flat)
-        progress(str(args.excel.resolve()))
 
     step("Listo")
     return 0

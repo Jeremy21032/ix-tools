@@ -328,10 +328,21 @@ function shopifyCredArgs(shop, token) {
 }
 
 function pythonJobPayload(job, preferExts) {
-  const artifacts =
-    job.status === "done" || job.status === "failed"
-      ? buildJobArtifacts(job.jobDir, job.jobId, preferExts)
-      : { files: [], downloadUrl: null, downloadName: null, table: null, result: undefined };
+  let artifacts = { files: [], downloadUrl: null, downloadName: null, table: null, result: undefined };
+  if (job.status === "done" || job.status === "failed") {
+    try {
+      artifacts = buildJobArtifacts(job.jobDir, job.jobId, preferExts);
+    } catch (e) {
+      const xlsx = findNewestFile(job.jobDir, [".xlsx"]);
+      artifacts = {
+        files: xlsx ? [xlsx] : [],
+        downloadUrl: xlsx ? downloadUrl(job.jobId, xlsx) : null,
+        downloadName: xlsx || null,
+        table: null,
+        result: `El archivo se generó pero no se pudo previsualizar: ${e.message}`,
+      };
+    }
+  }
   const summaryFromTable = artifacts.table ? tableSummary(artifacts.table) : null;
   const ok = job.status === "done" || job.status === "running";
   return {
@@ -411,7 +422,7 @@ router.post("/shopify-orders", upload.single("ordersFile"), async (req, res) => 
 });
 
 router.post("/shopify-variants", async (req, res) => {
-  const extra = ["-o", "variants.json", "--excel", "variants.xlsx"];
+  const extra = ["--excel", "variants.xlsx"];
   const includeMf = req.body?.includeMetafields;
   if (includeMf === false || includeMf === "false" || includeMf === 0 || includeMf === "0") {
     extra.push("--no-metafields");

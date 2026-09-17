@@ -87,6 +87,11 @@ function readCsvAsTable(filePath, maxRows = 2000) {
 }
 
 function readExcelAsTable(filePath, maxRows = 2000) {
+  const stat = fs.statSync(filePath);
+  // sheetjs loads the whole workbook; a 30k-row xlsx OOMs/timeouts on Render
+  if (stat.size > 400 * 1024) {
+    return null;
+  }
   // Lazy require so server boots even if not installed yet
   let XLSX;
   try {
@@ -94,13 +99,12 @@ function readExcelAsTable(filePath, maxRows = 2000) {
   } catch {
     return null;
   }
-  const wb = XLSX.readFile(filePath, { cellDates: true });
+  const wb = XLSX.readFile(filePath, { cellDates: true, sheetRows: maxRows + 1 });
   const sheetName = wb.SheetNames[0];
   if (!sheetName) return null;
   const sheet = wb.Sheets[sheetName];
   const json = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
   if (!json.length) {
-    // empty sheet with headers only
     const rows2d = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
     if (!rows2d.length) return null;
     const columns = (rows2d[0] || []).map((h, i) => String(h || `col_${i + 1}`));
@@ -150,7 +154,11 @@ function buildJobArtifacts(jobDir, jobId, preferExts = [".xlsx", ".csv", ".json"
     const full = path.join(jobDir, preferred);
     const lower = preferred.toLowerCase();
     try {
-      if (!table && lower.endsWith(".xlsx")) table = readExcelAsTable(full);
+      const size = fs.statSync(full).size;
+      const tooBig = size > 400 * 1024;
+      if (tooBig && (lower.endsWith(".xlsx") || lower.endsWith(".json") || lower.endsWith(".csv"))) {
+        previewText = `Archivo listo (${(size / (1024 * 1024)).toFixed(2)} MB). Descargalo; no se previsualiza por tamaño.`;
+      } else if (!table && lower.endsWith(".xlsx")) table = readExcelAsTable(full);
       else if (!table && lower.endsWith(".csv")) table = readCsvAsTable(full);
       else if (!table && lower.endsWith(".json")) {
         const raw = JSON.parse(fs.readFileSync(full, "utf8"));
