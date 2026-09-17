@@ -60,8 +60,8 @@ export const tools = [
     slug: "shopify-variants",
     title: "Shopify: listar variantes",
     description:
-      "Variantes con GIDs, SKU, barcode, stock por location y todos los metafields.",
-    help: "Recorre el catálogo Admin y lista cada variante con productId, variantId e inventoryId (GIDs Shopify), barcode, SKU, stock por location y todos los metafields (cualquier namespace) en JSON. Una fila por variante×ubicación. Descargá Excel o JSON. Token: read_products + read_inventory.",
+      "Variantes con GIDs, SKU, barcode y stock por location. Metafields opcionales.",
+    help: "Recorre el catálogo Admin y lista cada variante con productId, variantId e inventoryId (GIDs Shopify), barcode, SKU y stock por location. Activá 'Incluir metafields' si también querés todos los metafields (cualquier namespace) en JSON. Una fila por variante×ubicación. Token: read_products + read_inventory.",
     category: "shopify",
     icon: "List",
   },

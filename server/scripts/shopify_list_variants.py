@@ -163,7 +163,7 @@ query VariantMetafieldsPage($id: ID!, $cursor: String!) {
 """
 
 # Nested metafields(first:50) on a handful of variants stays under cost 1000
-METAFIELDS_BATCH_SIZE = 15
+METAFIELDS_BATCH_SIZE = 5
 
 
 def normalize_shop(shop: str) -> str:
@@ -173,6 +173,19 @@ def normalize_shop(shop: str) -> str:
         host = parsed.netloc or parsed.path
         return host.split("/")[0].strip()
     return shop.rstrip("/")
+
+
+def _is_throttled(payload: dict[str, Any]) -> bool:
+    for err in payload.get("errors") or []:
+        if not isinstance(err, dict):
+            if "throttl" in str(err).lower():
+                return True
+            continue
+        code = str((err.get("extensions") or {}).get("code") or "")
+        msg = str(err.get("message") or "")
+        if code.upper() == "THROTTLED" or "throttl" in msg.lower():
+            return True
+    return False
 
 
 def post_graphql(
@@ -190,12 +203,43 @@ def post_graphql(
         "Content-Length": str(len(body)),
         "Accept": "application/json",
     }
-    conn.request("POST", path, body=body, headers=headers)
-    resp = conn.getresponse()
-    raw = resp.read().decode("utf-8")
-    if resp.status >= 400:
-        raise RuntimeError(f"HTTP {resp.status}: {raw[:800]}")
-    return json.loads(raw)
+    last_err: Exception | None = None
+    for attempt in range(8):
+        try:
+            conn.request("POST", path, body=body, headers=headers)
+            resp = conn.getresponse()
+            raw = resp.read().decode("utf-8")
+        except (
+            http.client.RemoteDisconnected,
+            http.client.IncompleteRead,
+            http.client.CannotSendRequest,
+            ConnectionError,
+            TimeoutError,
+            OSError,
+        ) as e:
+            last_err = e
+            try:
+                conn.close()
+            except Exception:
+                pass
+            time.sleep(0.4 * (attempt + 1))
+            continue
+
+        if resp.status in (429, 503):
+            time.sleep(min(2.0 * (attempt + 1), 20))
+            continue
+        if resp.status >= 400:
+            raise RuntimeError(f"HTTP {resp.status}: {raw[:800]}")
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"Respuesta no JSON ({resp.status}): {raw[:400]}") from e
+        if _is_throttled(payload):
+            time.sleep(2.0 + attempt)
+            continue
+        return payload
+
+    raise RuntimeError(f"GraphQL falló tras reintentos: {last_err}")
 
 
 def _ensure_ok(payload: dict[str, Any]) -> dict[str, Any]:
@@ -389,24 +433,33 @@ def _fetch_metafields_map(
 
     for i in range(0, total, METAFIELDS_BATCH_SIZE):
         batch = unique[i : i + METAFIELDS_BATCH_SIZE]
-        data = _ensure_ok(
-            post_graphql(
-                conn,
-                api_version,
-                token,
-                VARIANT_METAFIELDS_NODES_QUERY,
-                {"ids": batch},
+        try:
+            data = _ensure_ok(
+                post_graphql(
+                    conn,
+                    api_version,
+                    token,
+                    VARIANT_METAFIELDS_NODES_QUERY,
+                    {"ids": batch},
+                )
             )
-        )
+        except RuntimeError as e:
+            print(f"Metafields lote {i // METAFIELDS_BATCH_SIZE + 1}: {e}", flush=True)
+            time.sleep(0.3)
+            continue
         for node in data.get("nodes") or []:
             if not node or not isinstance(node, dict):
                 continue
             vid = node.get("id")
             if not vid:
                 continue
-            out[str(vid)] = _complete_variant_metafields(
-                conn, api_version, token, str(vid), node.get("metafields")
-            )
+            try:
+                out[str(vid)] = _complete_variant_metafields(
+                    conn, api_version, token, str(vid), node.get("metafields")
+                )
+            except RuntimeError as e:
+                print(f"Metafields {vid}: {e}", flush=True)
+                out[str(vid)] = []
         done = min(i + METAFIELDS_BATCH_SIZE, total)
         print(f"Metafields {done}/{total} variantes", flush=True)
         time.sleep(0.15)
@@ -461,7 +514,12 @@ def _fetch_inventory_map(
     return out
 
 
-def get_all_product_variants(shop: str, token: str, api_version: str) -> list[dict[str, Any]]:
+def get_all_product_variants(
+    shop: str,
+    token: str,
+    api_version: str,
+    include_metafields: bool = True,
+) -> list[dict[str, Any]]:
     """
     Unique variants with nested inventory levels.
     Shape kept compatible with shopify_update_ixc_shipping_metafields
@@ -473,8 +531,10 @@ def get_all_product_variants(shop: str, token: str, api_version: str) -> list[di
         results = _fetch_variants_pass(conn, api_version, token)
         item_ids = [str(r.get("inventoryItemId") or "") for r in results]
         inv_map = _fetch_inventory_map(conn, api_version, token, item_ids)
-        variant_ids = [str(r.get("variantId") or "") for r in results]
-        mf_map = _fetch_metafields_map(conn, api_version, token, variant_ids)
+        mf_map: dict[str, list[dict[str, Any]]] = {}
+        if include_metafields:
+            variant_ids = [str(r.get("variantId") or "") for r in results]
+            mf_map = _fetch_metafields_map(conn, api_version, token, variant_ids)
         for r in results:
             iid = str(r.get("inventoryItemId") or "")
             r["inventory"] = inv_map.get(iid, [])
@@ -626,6 +686,11 @@ def main() -> int:
         action="store_true",
         help="Guardar JSON anidado (una entrada por variante con inventory[])",
     )
+    p.add_argument(
+        "--no-metafields",
+        action="store_true",
+        help="No consultar metafields (más rápido; mismo listado de SKU/stock)",
+    )
     args = p.parse_args()
 
     if not args.shop or not args.token:
@@ -637,15 +702,28 @@ def main() -> int:
         return 1
 
     try:
-        data = get_all_product_variants(args.shop, args.token, args.api_version)
+        data = get_all_product_variants(
+            args.shop,
+            args.token,
+            args.api_version,
+            include_metafields=not args.no_metafields,
+        )
     except (OSError, RuntimeError, json.JSONDecodeError) as e:
         print(e, file=sys.stderr)
         return 1
+    except Exception as e:
+        print(f"{type(e).__name__}: {e}", file=sys.stderr)
+        return 1
 
+    print(
+        "Metafields: " + ("sí" if not args.no_metafields else "no"),
+        flush=True,
+    )
     flat = flatten_variant_rows(data)
     print("TOTAL VARIANTS:", len(data))
     print("TOTAL ROWS (variant×location):", len(flat))
-    print(json.dumps(flat[:10], indent=2, ensure_ascii=False))
+    preview = [{k: v for k, v in row.items() if k != "metafields"} for row in flat[:10]]
+    print(json.dumps(preview, indent=2, ensure_ascii=False))
 
     if args.output:
         payload = data if args.nested else flat

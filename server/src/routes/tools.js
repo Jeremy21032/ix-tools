@@ -58,7 +58,7 @@ function respondPythonJob(res, result, preferExts) {
     downloadName = saved.downloadName;
   }
 
-  okResult(res, {
+  const payload = {
     ok: result.ok,
     summary: summaryFromTable || {
       success: result.ok ? 1 : 0,
@@ -70,7 +70,14 @@ function respondPythonJob(res, result, preferExts) {
     files: artifacts.files,
     table: artifacts.table,
     result: artifacts.result || undefined,
-  });
+  };
+
+  if (!result.ok) {
+    const fromLogs = (result.logs || []).filter(Boolean).slice(-12).join("\n");
+    return failResult(res, 400, fromLogs || "El script falló", payload);
+  }
+
+  return okResult(res, payload);
 }
 
 /** POST /api/tools/order-status-resender */
@@ -357,12 +364,12 @@ router.post("/shopify-orders", upload.single("ordersFile"), async (req, res) => 
 });
 
 router.post("/shopify-variants", async (req, res) => {
-  await runShopifyScript(
-    "shopify_list_variants.py",
-    ["-o", "variants.json", "--excel", "variants.xlsx"],
-    req,
-    res
-  );
+  const extra = ["-o", "variants.json", "--excel", "variants.xlsx"];
+  const includeMf = req.body?.includeMetafields;
+  if (includeMf === false || includeMf === "false" || includeMf === 0 || includeMf === "0") {
+    extra.push("--no-metafields");
+  }
+  await runShopifyScript("shopify_list_variants.py", extra, req, res);
 });
 
 router.post("/shopify-product-events", async (req, res) => {

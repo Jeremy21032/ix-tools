@@ -149,6 +149,12 @@ const FORM_CONFIG = {
         placeholder: "shpat_…",
         persist: "ix-shopify-token",
       },
+      {
+        key: "includeMetafields",
+        type: "switch",
+        label: "Incluir metafields",
+        default: false,
+      },
     ],
   },
   "shopify-product-events": {
@@ -499,7 +505,7 @@ async function run() {
     if (data.ok !== false) message.success("Listo");
     else message.warning("Completó con errores o parcialmente");
   } catch (e) {
-    logs.value = e.data?.logs || [e.message];
+    logs.value = e.data?.logs?.length ? e.data.logs : [e.data?.error || e.message];
     message.error(e.message);
   } finally {
     loading.value = false;
