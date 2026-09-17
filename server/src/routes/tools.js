@@ -4,6 +4,8 @@ const path = require("path");
 const { runResend, EVENT_TYPE_MAP } = require("../services/reenvio/runResend");
 const {
   runPython,
+  startPythonJob,
+  getPythonJob,
   writeTempFile,
   findNewestFile,
   listJobFiles,
@@ -325,6 +327,32 @@ function shopifyCredArgs(shop, token) {
   return ["--shop", shop, "--token", token];
 }
 
+function pythonJobPayload(job, preferExts) {
+  const artifacts =
+    job.status === "done" || job.status === "failed"
+      ? buildJobArtifacts(job.jobDir, job.jobId, preferExts)
+      : { files: [], downloadUrl: null, downloadName: null, table: null, result: undefined };
+  const summaryFromTable = artifacts.table ? tableSummary(artifacts.table) : null;
+  const ok = job.status === "done" || job.status === "running";
+  return {
+    ok,
+    pending: job.status === "running",
+    status: job.status,
+    jobId: job.jobId,
+    summary: summaryFromTable || {
+      success: ok ? 1 : 0,
+      errors: ok ? 0 : 1,
+    },
+    logs: job.logs || [],
+    error: job.error,
+    downloadUrl: artifacts.downloadUrl,
+    downloadName: artifacts.downloadName,
+    files: artifacts.files,
+    table: artifacts.table,
+    result: artifacts.result || undefined,
+  };
+}
+
 async function runShopifyScript(script, extraArgs, req, res) {
   try {
     const { shop, token } = resolveShopifyCreds(req);
@@ -336,18 +364,37 @@ async function runShopifyScript(script, extraArgs, req, res) {
       );
     }
     const args = [...shopifyCredArgs(shop, token), ...extraArgs];
-    const result = await runPython(script, args, {
+    const started = startPythonJob(script, args, {
       env: {
         SHOPIFY_STORE: shop,
         SHOPIFY_SHOP: shop,
         SHOPIFY_ACCESS_TOKEN: token,
       },
     });
-    return respondPythonJob(res, result, [".xlsx", ".csv", ".json"]);
+    return okResult(res, {
+      pending: true,
+      status: "running",
+      jobId: started.jobId,
+      logs: [
+        "▶ Recibido el pedido",
+        "▶ Arrancando el job en segundo plano…",
+      ],
+    });
   } catch (e) {
     failResult(res, 500, e.message);
   }
 }
+
+router.get("/jobs/:jobId", (req, res) => {
+  const job = getPythonJob(req.params.jobId);
+  if (!job) return failResult(res, 404, "Job no encontrado");
+  const payload = pythonJobPayload(job, [".xlsx", ".csv", ".json"]);
+  if (job.status === "failed") {
+    const fromLogs = (job.logs || []).filter(Boolean).slice(-12).join("\n");
+    return failResult(res, 400, job.error || fromLogs || "El script falló", payload);
+  }
+  return okResult(res, payload);
+});
 
 router.post("/shopify-orders", upload.single("ordersFile"), async (req, res) => {
   let inputPath = req.file?.path;

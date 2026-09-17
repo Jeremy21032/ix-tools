@@ -87,6 +87,119 @@ function runPython(scriptName, args = [], opts = {}) {
   });
 }
 
+function writeJobMeta(jobDir, meta) {
+  fs.writeFileSync(path.join(jobDir, "job.json"), JSON.stringify(meta), "utf8");
+}
+
+function readJobMeta(jobDir) {
+  const p = path.join(jobDir, "job.json");
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function readJobLogs(jobDir) {
+  const p = path.join(jobDir, "run.log");
+  if (!fs.existsSync(p)) return [];
+  return fs
+    .readFileSync(p, "utf8")
+    .split(/\r?\n/)
+    .filter((l) => l.trim());
+}
+
+function appendJobLog(jobDir, text) {
+  fs.appendFileSync(path.join(jobDir, "run.log"), text);
+}
+
+/**
+ * Start a python script and return immediately (survives Render's ~30s HTTP timeout).
+ */
+function startPythonJob(scriptName, args = [], opts = {}) {
+  ensureDirs();
+  const scriptPath = path.join(SCRIPTS_DIR, scriptName);
+  if (!fs.existsSync(scriptPath)) {
+    throw new Error(`Script no encontrado: ${scriptName}`);
+  }
+
+  const timeoutMs = opts.timeoutMs || 15 * 60 * 1000;
+  const jobId = opts.jobId || uuidv4();
+  const jobDir = path.join(DOWNLOADS_DIR, jobId);
+  fs.mkdirSync(jobDir, { recursive: true });
+  writeJobMeta(jobDir, {
+    status: "running",
+    script: scriptName,
+    startedAt: Date.now(),
+  });
+  appendJobLog(jobDir, "▶ Iniciando job\n");
+
+  const proc = spawn(pythonBin(), [scriptPath, ...args], {
+    cwd: opts.cwd || jobDir,
+    env: { ...process.env, ...(opts.env || {}) },
+    windowsHide: true,
+    detached: false,
+  });
+
+  const timer = setTimeout(() => {
+    try {
+      proc.kill("SIGTERM");
+    } catch {
+      /* ignore */
+    }
+    appendJobLog(jobDir, "Timeout: se canceló el script\n");
+    writeJobMeta(jobDir, {
+      status: "failed",
+      code: -1,
+      error: "Timeout",
+      finishedAt: Date.now(),
+    });
+  }, timeoutMs);
+
+  proc.stdout.on("data", (chunk) => appendJobLog(jobDir, chunk.toString()));
+  proc.stderr.on("data", (chunk) => appendJobLog(jobDir, chunk.toString()));
+
+  proc.on("close", (code) => {
+    clearTimeout(timer);
+    const meta = readJobMeta(jobDir) || {};
+    if (meta.status === "failed" && meta.error === "Timeout") return;
+    writeJobMeta(jobDir, {
+      status: code === 0 ? "done" : "failed",
+      code,
+      finishedAt: Date.now(),
+    });
+  });
+
+  proc.on("error", (err) => {
+    clearTimeout(timer);
+    appendJobLog(jobDir, `${err.message}\n`);
+    writeJobMeta(jobDir, {
+      status: "failed",
+      code: -1,
+      error: err.message,
+      finishedAt: Date.now(),
+    });
+  });
+
+  return { jobId, jobDir };
+}
+
+function getPythonJob(jobId) {
+  const safe = String(jobId || "").replace(/[^a-fA-F0-9-]/g, "");
+  const jobDir = path.join(DOWNLOADS_DIR, safe);
+  if (!safe || !fs.existsSync(jobDir)) return null;
+  const meta = readJobMeta(jobDir) || { status: "running" };
+  return {
+    jobId: safe,
+    jobDir,
+    status: meta.status || "running",
+    code: meta.code,
+    error: meta.error,
+    logs: readJobLogs(jobDir),
+  };
+}
+
 function writeTempFile(content, ext = ".txt") {
   ensureDirs();
   const id = uuidv4();
@@ -125,6 +238,8 @@ function findNewestFile(jobDir, exts = [".xlsx", ".csv", ".json", ".zip"]) {
 
 module.exports = {
   runPython,
+  startPythonJob,
+  getPythonJob,
   writeTempFile,
   listJobFiles,
   findNewestFile,

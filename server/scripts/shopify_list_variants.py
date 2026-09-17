@@ -317,12 +317,24 @@ def _collect_variant_nodes(
     return [(e or {}).get("node") or {} for e in edges]
 
 
+def step(title: str, detail: str = "") -> None:
+    line = f"▶ {title}"
+    if detail:
+        line += f" — {detail}"
+    print(line, flush=True)
+
+
+def progress(msg: str) -> None:
+    print(f"  · {msg}", flush=True)
+
+
 def _fetch_variants_pass(
     conn: http.client.HTTPSConnection,
     api_version: str,
     token: str,
 ) -> list[dict[str, Any]]:
     """Pass 1: product / variant / sku / barcode / inventoryItemId (no levels)."""
+    step("Consultando productos y variantes")
     results: list[dict[str, Any]] = []
     cursor: str | None = None
     has_next = True
@@ -358,7 +370,10 @@ def _fetch_variants_pass(
         cursor = edges[-1].get("cursor") if edges else None
         if has_next and not cursor:
             raise RuntimeError("pageInfo.hasNextPage es true pero no hay cursor en el último edge")
-        print(f"Productos página {page_n}: variantes acumuladas {len(results)}", flush=True)
+        print(
+            f"  · Página {page_n}: {len(edges)} productos, {len(results)} variantes acumuladas",
+            flush=True,
+        )
 
     return results
 
@@ -444,7 +459,7 @@ def _fetch_metafields_map(
                 )
             )
         except RuntimeError as e:
-            print(f"Metafields lote {i // METAFIELDS_BATCH_SIZE + 1}: {e}", flush=True)
+            print(f"  · Metafields lote {i // METAFIELDS_BATCH_SIZE + 1}: {e}", flush=True)
             time.sleep(0.3)
             continue
         for node in data.get("nodes") or []:
@@ -461,7 +476,7 @@ def _fetch_metafields_map(
                 print(f"Metafields {vid}: {e}", flush=True)
                 out[str(vid)] = []
         done = min(i + METAFIELDS_BATCH_SIZE, total)
-        print(f"Metafields {done}/{total} variantes", flush=True)
+        print(f"  · Metafields {done}/{total} variantes", flush=True)
         time.sleep(0.15)
 
     return out
@@ -507,7 +522,7 @@ def _fetch_inventory_map(
             out[str(iid)] = _levels_from_inventory_item(node)
 
         done = min(i + INVENTORY_BATCH_SIZE, total)
-        print(f"Inventario {done}/{total} items", flush=True)
+        print(f"  · Inventario {done}/{total} items", flush=True)
         # Soft throttle to respect restore rate
         time.sleep(0.15)
 
@@ -526,15 +541,21 @@ def get_all_product_variants(
     (productId / variantId / sku still present).
     """
     host = normalize_shop(shop)
+    step("Conectando a Shopify", host)
     conn = http.client.HTTPSConnection(host, timeout=180)
     try:
         results = _fetch_variants_pass(conn, api_version, token)
+        step("Consultando inventario por location", f"{len(results)} variantes")
         item_ids = [str(r.get("inventoryItemId") or "") for r in results]
         inv_map = _fetch_inventory_map(conn, api_version, token, item_ids)
         mf_map: dict[str, list[dict[str, Any]]] = {}
         if include_metafields:
+            step("Consultando metafields de cada variante")
             variant_ids = [str(r.get("variantId") or "") for r in results]
             mf_map = _fetch_metafields_map(conn, api_version, token, variant_ids)
+        else:
+            step("Omitiendo metafields (flag desactivado)")
+        step("Uniendo inventario y variantes")
         for r in results:
             iid = str(r.get("inventoryItemId") or "")
             r["inventory"] = inv_map.get(iid, [])
@@ -715,25 +736,22 @@ def main() -> int:
         print(f"{type(e).__name__}: {e}", file=sys.stderr)
         return 1
 
-    print(
-        "Metafields: " + ("sí" if not args.no_metafields else "no"),
-        flush=True,
-    )
+    step("Armando filas del export")
     flat = flatten_variant_rows(data)
-    print("TOTAL VARIANTS:", len(data))
-    print("TOTAL ROWS (variant×location):", len(flat))
-    preview = [{k: v for k, v in row.items() if k != "metafields"} for row in flat[:10]]
-    print(json.dumps(preview, indent=2, ensure_ascii=False))
+    progress(f"{len(data)} variantes · {len(flat)} filas (variante × location)")
 
     if args.output:
+        step("Guardando JSON")
         payload = data if args.nested else flat
         args.output.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-        print("Guardado JSON:", args.output.resolve())
+        progress(str(args.output.resolve()))
 
     if args.excel:
+        step("Guardando Excel")
         write_xlsx(args.excel, flat)
-        print("Guardado Excel:", args.excel.resolve())
+        progress(str(args.excel.resolve()))
 
+    step("Listo")
     return 0
 
 

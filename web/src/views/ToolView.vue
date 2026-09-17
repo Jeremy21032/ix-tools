@@ -17,10 +17,12 @@ import {
   NText,
   NDivider,
   NDataTable,
+  NTimeline,
+  NTimelineItem,
   useMessage,
 } from "naive-ui";
 import { getTool } from "../tools/registry";
-import { apiPost } from "../api";
+import { apiPost, apiGet } from "../api";
 import {
   FAKE_DOCUMENTS,
   FAKE_PHONES,
@@ -376,6 +378,13 @@ const summary = ref(null);
 const tableColumns = ref([]);
 const tableRows = ref([]);
 
+const stepLogs = computed(() =>
+  logs.value.filter((l) => {
+    const t = String(l || "").trimStart();
+    return t.startsWith("▶") || t.startsWith("·");
+  })
+);
+
 const fakeForm = reactive({
   kind: "document",
   country: "CO",
@@ -491,6 +500,10 @@ async function run() {
       }
       data = await apiPost(props.slug, body);
     }
+    if (data?.pending && data.jobId) {
+      logs.value = data.logs || ["Job iniciado…"];
+      data = await waitForJob(data.jobId);
+    }
     logs.value = data.logs || [];
     downloadUrl.value = data.downloadUrl || null;
     downloadName.value = data.downloadName || "";
@@ -506,10 +519,27 @@ async function run() {
     else message.warning("Completó con errores o parcialmente");
   } catch (e) {
     logs.value = e.data?.logs?.length ? e.data.logs : [e.data?.error || e.message];
-    message.error(e.message);
+    message.error(String(e.message || e.data?.error || "Falló la ejecución").slice(0, 180));
   } finally {
     loading.value = false;
   }
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function waitForJob(jobId) {
+  for (let i = 0; i < 450; i++) {
+    await sleep(2000);
+    const job = await apiGet(`jobs/${jobId}`);
+    logs.value = job.logs || logs.value;
+    if (job.pending || job.status === "running") continue;
+    return job;
+  }
+  throw Object.assign(new Error("Timeout esperando el job (15 min)"), {
+    data: { logs: logs.value },
+  });
 }
 
 function applyTable(table) {
@@ -811,6 +841,18 @@ const downloadLabel = computed(() => {
           </n-space>
         </n-space>
         <div class="logs-box">{{ resultText }}</div>
+      </div>
+
+      <div v-if="stepLogs.length" style="margin-bottom: 1rem">
+        <div style="font-weight: 600; margin-bottom: 0.6rem">Pasos</div>
+        <n-timeline>
+          <n-timeline-item
+            v-for="(line, i) in stepLogs"
+            :key="i"
+            :type="String(line).includes('Listo') ? 'success' : 'info'"
+            :title="line"
+          />
+        </n-timeline>
       </div>
 
       <div v-if="logs.length">
