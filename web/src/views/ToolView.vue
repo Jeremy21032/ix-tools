@@ -66,7 +66,21 @@ const FORM_CONFIG = {
           { label: "READY_TO_DELIVER", value: "READY_TO_DELIVER" },
           { label: "PICKUP_READY", value: "PICKUP_READY" },
           { label: "PROVIDER_ORDER_RELEASED", value: "PROVIDER_ORDER_RELEASED" },
+          { label: "ORDER_CANCELED_SUCCESS", value: "ORDER_CANCELED_SUCCESS" },
+          { label: "ORDER_CANCELED_ERROR", value: "ORDER_CANCELED_ERROR" },
         ],
+      },
+      {
+        key: "message",
+        type: "textarea",
+        label: "Mensaje de cancelación (opcional)",
+        rows: 3,
+        placeholder:
+          "Si lo dejás vacío se usa el mensaje por defecto del status. En ERROR podés reemplazar el ID de la orden de venta de NetSuite.",
+        showIf: {
+          key: "status",
+          oneOf: ["ORDER_CANCELED_SUCCESS", "ORDER_CANCELED_ERROR"],
+        },
       },
       {
         key: "eventMode",
@@ -361,6 +375,13 @@ function persistFormFields(config, form) {
       }
     } catch {}
   }
+}
+
+function fieldVisible(f) {
+  if (!f.showIf) return true;
+  const current = form[f.showIf.key];
+  if (Array.isArray(f.showIf.oneOf)) return f.showIf.oneOf.includes(current);
+  return current === f.showIf.value;
 }
 
 const message = useMessage();
@@ -706,10 +727,7 @@ const downloadLabel = computed(() => {
 
         <template v-else>
           <template v-for="f in config.fields" :key="f.key">
-            <n-form-item
-              v-if="!f.showIf || form[f.showIf.key] === f.showIf.value"
-              :label="f.label"
-            >
+            <n-form-item v-if="fieldVisible(f)" :label="f.label">
             <n-input
               v-if="f.type === 'textarea'"
               v-model:value="form[f.key]"
