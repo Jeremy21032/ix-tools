@@ -68,6 +68,37 @@ const EVENT_TYPE_MAP = {
     payloadCustomerId: process.env.IXC_PROVIDER_PAYLOAD_CUSTOMER_ID || "XCLN22730",
     syncUpdateDateWithOrderCreation: true,
   },
+  ORDER_CANCELED_SUCCESS: {
+    statusCode: "ORDER_CANCELED",
+    statusDescription: "ORDER_CANCELED",
+    subStatus: "ORDER_CANCELED_SUCCESS",
+    entityStatus: "ORDER_CANCELED",
+    capability: "CORD",
+    sourceSystem: "Netsuite",
+    payloadChannel: "WL180",
+    entityType: "orderStatus",
+    timestampMs: true,
+    subStatusDetails: {
+      message: "Proceso de cancelación ejecutado.",
+      success: true,
+    },
+  },
+  ORDER_CANCELED_ERROR: {
+    statusCode: "ORDER_CANCELED",
+    statusDescription: "ORDER_CANCELED",
+    subStatus: "ORDER_CANCELED_ERROR",
+    entityStatus: "ORDER_CANCELED",
+    capability: "CORD",
+    sourceSystem: "Netsuite",
+    payloadChannel: "WL180",
+    entityType: "orderStatus",
+    timestampMs: true,
+    subStatusDetails: {
+      message:
+        "La Orden de Venta con ID 7369607 ya fue cancelada anteriormente (estado cerrado). No se realizará ninguna acción.",
+      success: false,
+    },
+  },
 };
 
 function generateCurlCommand(url, payload, headers) {
@@ -155,20 +186,25 @@ async function sendOrderStatus(
 ) {
   const logs = [];
   const now = new Date().toISOString();
-  const timestamp = String(Math.floor(Date.now() / 1000));
   const finalOrderCreationDate = orderCreationDate || now;
   const normalizedEventMode = eventMode.toLowerCase();
   const isChanged = normalizedEventMode === "changed";
   const finalEventType = isChanged ? "orderStatusChanged" : "orderStatusRequested";
-  const finalEntityType = isChanged
-    ? "ixc-fulfillment-order-status-changed"
-    : "ixc-fulfillment-order-status-requested";
 
   const eventConfig = EVENT_TYPE_MAP[eventType.toUpperCase()];
   if (!eventConfig) {
     const msg = `Tipo de evento inválido: ${eventType}. Debe ser uno de: ${Object.keys(EVENT_TYPE_MAP).join(", ")}`;
     return { ok: false, orderId, message: msg, logs };
   }
+
+  const timestamp = eventConfig.timestampMs
+    ? String(Date.now())
+    : String(Math.floor(Date.now() / 1000));
+  const finalEntityType =
+    eventConfig.entityType ||
+    (isChanged
+      ? "ixc-fulfillment-order-status-changed"
+      : "ixc-fulfillment-order-status-requested");
 
   const envConfig = resolveEnvConfig(options.environment || "PROD");
   const derivedCustomerId = orderId.split("_").pop();
@@ -198,6 +234,20 @@ async function sendOrderStatus(
     ? finalOrderCreationDate
     : now;
 
+  const statusInformation = {
+    statusCode: eventConfig.statusCode,
+    statusDescription: eventConfig.statusDescription,
+    subStatus: eventConfig.subStatus,
+    updateDate: statusUpdateDate,
+  };
+  if (eventConfig.subStatusDetails) {
+    const customMessage = options.message != null ? String(options.message).trim() : "";
+    statusInformation.subStatusDetails = {
+      message: customMessage || eventConfig.subStatusDetails.message,
+      success: eventConfig.subStatusDetails.success,
+    };
+  }
+
   const url = envConfig.url;
 
   const headers = {
@@ -210,32 +260,48 @@ async function sendOrderStatus(
     "x-customerid": headerCustomerId,
   };
 
-  const payload = {
-    data: JSON.stringify({
-      orderNumber: orderId,
-      orderCreationDate: finalOrderCreationDate,
-      statusInformation: {
-        statusCode: eventConfig.statusCode,
-        statusDescription: eventConfig.statusDescription,
-        subStatus: eventConfig.subStatus,
-        updateDate: statusUpdateDate,
-      },
-    }),
-    domain: "OMNI",
-    channel: "OMNI",
-    country: envelopeCountry,
-    version: "1.0",
-    commerce: "IXC",
-    datetime: now,
-    entityId: orderId,
-    mimeType: "application/json",
-    timestamp,
-    capability: eventConfig.capability || "FORD",
-    customerId: payloadCustomerId,
-    eventType: finalEventType,
-    entityType: finalEntityType,
-    entityStatus: eventConfig.entityStatus,
-  };
+  const dataBody = JSON.stringify({
+    orderNumber: orderId,
+    orderCreationDate: finalOrderCreationDate,
+    statusInformation,
+  });
+
+  const payload = eventConfig.sourceSystem
+    ? {
+        timestamp,
+        datetime: now,
+        version: "1.0",
+        commerce: "IXC",
+        mimeType: "application/json",
+        sourceSystem: eventConfig.sourceSystem,
+        capability: eventConfig.capability || "FORD",
+        domain: "OMNI",
+        channel: eventConfig.payloadChannel || "WL180",
+        country: envelopeCountry,
+        customerId: payloadCustomerId,
+        entityId: orderId,
+        entityType: finalEntityType,
+        eventType: finalEventType,
+        entityStatus: eventConfig.entityStatus,
+        data: dataBody,
+      }
+    : {
+        data: dataBody,
+        domain: "OMNI",
+        channel: "OMNI",
+        country: envelopeCountry,
+        version: "1.0",
+        commerce: "IXC",
+        datetime: now,
+        entityId: orderId,
+        mimeType: "application/json",
+        timestamp,
+        capability: eventConfig.capability || "FORD",
+        customerId: payloadCustomerId,
+        eventType: finalEventType,
+        entityType: finalEntityType,
+        entityStatus: eventConfig.entityStatus,
+      };
 
   if (debug) {
     logs.push(`Ambiente: ${envConfig.environment} | URL: ${url}`);

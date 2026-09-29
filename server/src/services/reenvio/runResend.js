@@ -39,6 +39,7 @@ async function runResend(opts) {
     debug = false,
     threads = DEFAULT_THREADS,
     environment = "PROD",
+    message = "",
     onLog = () => {},
   } = opts;
 
@@ -117,7 +118,7 @@ async function runResend(opts) {
             debug,
             null,
             validEventMode,
-            { environment: validEnvironment }
+            { environment: validEnvironment, message }
           )
         )
     );

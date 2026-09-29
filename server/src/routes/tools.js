@@ -93,6 +93,7 @@ router.post("/order-status-resender", async (req, res) => {
       threads = 8,
       debug = false,
       environment = "PROD",
+      message = "",
     } = req.body || {};
     const result = await runResend({
       orders,
@@ -102,6 +103,7 @@ router.post("/order-status-resender", async (req, res) => {
       threads: Number(threads) || 8,
       debug: Boolean(debug),
       environment,
+      message,
     });
 
     const detailRows = (result.errorDetails || []).map((e) => ({
