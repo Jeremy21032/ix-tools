@@ -148,6 +148,7 @@ query GetOrder($id: ID!) {
         product { id }
         variant {
           sku
+          barcode
           title
           compareAtPrice
           price
@@ -302,6 +303,7 @@ def flatten_for_csv(order: dict) -> dict:
 
     line_items = order.get("lineItems", {}).get("nodes", [])
     skus = "; ".join(li.get("sku") or "" for li in line_items)
+    barcodes = "; ".join(((li.get("variant") or {}).get("barcode") or "") for li in line_items)
     titles = "; ".join(li.get("title") or "" for li in line_items)
     quantities = "; ".join(str(li.get("quantity")) for li in line_items)
 
@@ -347,6 +349,7 @@ def flatten_for_csv(order: dict) -> dict:
         "shippingLine_taxLines": shipping_line.get("taxLines"),
         "shippingLine_source": shipping_line.get("source"),
         "line_items_skus": skus,
+        "line_items_barcodes": barcodes,
         "line_items_titles": titles,
         "line_items_quantities": quantities,
         "fulfillment_status": fulfillment_status,
