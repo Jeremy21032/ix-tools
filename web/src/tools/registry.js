@@ -52,7 +52,7 @@ export const tools = [
     title: "Shopify: detalle órdenes",
     description:
       "Baja el detalle completo de órdenes Shopify (JSON/CSV) de cualquier tienda.",
-    help: "Dado un listado de números de orden Admin (ej. 4076), obtiene el detalle GraphQL (líneas, fulfillments, transacciones) y lo exporta. Store + token van en el form porque trabajás con muchas tiendas.",
+    help: "Dado un listado de números de orden Admin (ej. 4076), obtiene el detalle GraphQL (líneas con barcode, fulfillments, transacciones) y lo exporta. Store + token van en el form porque trabajás con muchas tiendas.",
     category: "shopify",
     icon: "Cart",
   },
