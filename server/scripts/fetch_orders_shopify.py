@@ -292,6 +292,11 @@ def flatten_transactions_for_csv(transactions: list) -> dict:
     }
 
 
+def _shop_amount(money_set) -> object:
+    shop = (money_set or {}).get("shopMoney") or {}
+    return shop.get("amount")
+
+
 def flatten_for_csv(order: dict) -> dict:
     if not order:
         return {}
@@ -323,10 +328,10 @@ def flatten_for_csv(order: dict) -> dict:
         "customer_firstName": customer.get("firstName"),
         "customer_lastName": customer.get("lastName"),
         "currencyCode": order.get("currencyCode"),
-        "subtotalPrice": (order.get("subtotalPriceSet") or {}).get("shopMoney", {}).get("amount"),
-        "totalTax": (order.get("totalTaxSet") or {}).get("shopMoney", {}).get("amount"),
-        "totalDiscounts": (order.get("totalDiscountsSet") or {}).get("shopMoney", {}).get("amount"),
-        "totalPrice": (order.get("totalPriceSet") or {}).get("shopMoney", {}).get("amount"),
+        "subtotalPrice": _shop_amount(order.get("subtotalPriceSet")),
+        "totalTax": _shop_amount(order.get("totalTaxSet")),
+        "totalDiscounts": _shop_amount(order.get("totalDiscountsSet")),
+        "totalPrice": _shop_amount(order.get("totalPriceSet")),
         "discountCodes": "; ".join(order.get("discountCodes") or []),
         "shipping_name": shipping.get("name"),
         "shipping_address1": shipping.get("address1"),
@@ -342,9 +347,9 @@ def flatten_for_csv(order: dict) -> dict:
         "shippingLine_code": shipping_line.get("code"),
         "shippingLine_custom": shipping_line.get("custom"),
         "shippingLine_deliveryCategory": shipping_line.get("deliveryCategory"),
-        "shippingLine_originalPrice": shipping_line.get("originalPriceSet").get("shopMoney").get("amount"),
-        "shippingLine_discountedPrice": shipping_line.get("discountedPriceSet").get("shopMoney").get("amount"),
-        "shippingLine_currentDiscountedPrice": shipping_line.get("currentDiscountedPriceSet").get("shopMoney").get("amount"),
+        "shippingLine_originalPrice": _shop_amount(shipping_line.get("originalPriceSet")),
+        "shippingLine_discountedPrice": _shop_amount(shipping_line.get("discountedPriceSet")),
+        "shippingLine_currentDiscountedPrice": _shop_amount(shipping_line.get("currentDiscountedPriceSet")),
         "shippingLine_discountAllocations": shipping_line.get("discountAllocations"),
         "shippingLine_taxLines": shipping_line.get("taxLines"),
         "shippingLine_source": shipping_line.get("source"),
