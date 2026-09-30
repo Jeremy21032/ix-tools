@@ -51,9 +51,17 @@ const FORM_CONFIG = {
       {
         key: "orders",
         type: "textarea",
-        label: "Órdenes (ORDEN o ORDEN,PAIS por línea)",
-        rows: 10,
+        label: "Órdenes (opcional si completás event data)",
+        rows: 8,
         placeholder: "JB-CO00177531_JBLCOWL180,CO",
+      },
+      {
+        key: "eventData",
+        type: "textarea",
+        label: "Event data (uno por línea: JSON o JSON,PAIS)",
+        rows: 8,
+        placeholder:
+          '{"orderNumber":"1568_DOCCLWL180","orderCreationDate":"2026-06-01T16:25:41.523Z","statusInformation":{"subStatus":"ORDER_CANCELED_SUCCESS","statusCode":"ORDER_CANCELED","updateDate":"2026-06-01T16:26:01.226Z","subStatusDetails":{"message":"Proceso de cancelación ejecutado.","success":true},"statusDescription":"ORDER_CANCELED"}},CL',
       },
       {
         key: "status",
