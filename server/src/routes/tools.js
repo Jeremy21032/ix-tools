@@ -94,6 +94,7 @@ router.post("/order-status-resender", async (req, res) => {
       debug = false,
       environment = "PROD",
       message = "",
+      eventData = "",
     } = req.body || {};
     const result = await runResend({
       orders,
@@ -104,6 +105,7 @@ router.post("/order-status-resender", async (req, res) => {
       debug: Boolean(debug),
       environment,
       message,
+      eventData,
     });
 
     const detailRows = (result.errorDetails || []).map((e) => ({

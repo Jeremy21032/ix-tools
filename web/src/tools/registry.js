@@ -16,7 +16,7 @@ export const tools = [
     title: "Reenvio de estados",
     description:
       "Reenvía eventos de fulfillment (PACK, PICK, etc.) cuando una orden quedó trabada o no notificó a IXC.",
-    help: "Usalo cuando una orden no avanzó de estado en el ecosistema IXC (por timeout, 429 o fallo de integración). Publica orderStatusRequested/Changed a APIM en PROD o UAT: PACK, PICK, READY_TO_DELIVER, PICKUP_READY, PROVIDER_ORDER_RELEASED, ORDER_CANCELED_SUCCESS u ORDER_CANCELED_ERROR. Pegá la lista de order IDs (opcionalmente con país) y elegí status + modo.",
+    help: "Usalo cuando una orden no avanzó de estado en el ecosistema IXC (por timeout, 429 o fallo de integración). Publica orderStatusRequested/Changed a APIM en PROD o UAT: PACK, PICK, READY_TO_DELIVER, PICKUP_READY, PROVIDER_ORDER_RELEASED, ORDER_CANCELED_SUCCESS u ORDER_CANCELED_ERROR. Pegá order IDs o event data, uno por línea: JSON o JSON,PAIS. El país de cada línea va en el evento; si no lo ponés, se usa el país por defecto.",
     category: "orders",
     icon: "Send",
   },

@@ -185,6 +185,11 @@ async function sendOrderStatus(
   options = {}
 ) {
   const logs = [];
+  const eventData =
+    options.eventData && typeof options.eventData === "object" && !Array.isArray(options.eventData)
+      ? options.eventData
+      : null;
+  if (eventData?.orderNumber) orderId = String(eventData.orderNumber).trim();
   const now = new Date().toISOString();
   const finalOrderCreationDate = orderCreationDate || now;
   const normalizedEventMode = eventMode.toLowerCase();
@@ -260,11 +265,16 @@ async function sendOrderStatus(
     "x-customerid": headerCustomerId,
   };
 
-  const dataBody = JSON.stringify({
-    orderNumber: orderId,
-    orderCreationDate: finalOrderCreationDate,
-    statusInformation,
-  });
+  const dataBody = eventData
+    ? JSON.stringify(eventData)
+    : JSON.stringify({
+        orderNumber: orderId,
+        orderCreationDate: finalOrderCreationDate,
+        statusInformation,
+      });
+  const entityStatus = eventData?.statusInformation?.statusCode
+    ? String(eventData.statusInformation.statusCode)
+    : eventConfig.entityStatus;
 
   const payload = eventConfig.sourceSystem
     ? {
@@ -282,7 +292,7 @@ async function sendOrderStatus(
         entityId: orderId,
         entityType: finalEntityType,
         eventType: finalEventType,
-        entityStatus: eventConfig.entityStatus,
+        entityStatus,
         data: dataBody,
       }
     : {
@@ -300,7 +310,7 @@ async function sendOrderStatus(
         customerId: payloadCustomerId,
         eventType: finalEventType,
         entityType: finalEntityType,
-        entityStatus: eventConfig.entityStatus,
+        entityStatus,
       };
 
   if (debug) {
