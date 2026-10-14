@@ -1,27 +1,15 @@
 {
-  "ICMXCOWL180": {
-    "country": "CO",
-    "customerId": "ICMX",
-    "type": "ID00214",
+  "CROCSPAWL180": {
+    "country": "PA",
+    "customerId": "Crocs",
+    "type": "ID00210",
     "channel": "WL180"
   },
-  "JBLPEWL180": {
-    "country": "PE",
-    "customerId": "",
-    "type": "ID00221",
-    "channel": "WL180"
-  },
-  "JBLCLWL180": {
+  "HDCCLWL180": {
     "country": "CL",
     "customerId": "",
     "type": "ID00220",
     "channel": "WL180"
-  },
-  "JBLMXWL180": {
-    "country": "MX",
-    "customerId": "JBL",
-    "type": "ID00226",
-    "channel": "B2B"
   },
   "HNAMXWL180": {
     "country": "MX",
@@ -35,6 +23,78 @@
     "type": "ID00226",
     "channel": "B2B"
   },
+  "ICMXCOWL180": {
+    "country": "CO",
+    "customerId": "ICMX",
+    "type": "ID00214",
+    "channel": "WL180"
+  },
+  "JBLCLWL180": {
+    "country": "CL",
+    "customerId": "",
+    "type": "ID00220",
+    "channel": "WL180"
+  },
+  "MMACLMKWAL": {
+    "country": "CL",
+    "customerId": "",
+    "type": "ID00220",
+    "channel": "WL180"
+  },
+  "MMACLMKPAR": {
+    "country": "CL",
+    "customerId": "",
+    "type": "ID00220",
+    "channel": "WL180"
+  },
+  "MMACLMKMEL": {
+    "country": "CL",
+    "customerId": "",
+    "type": "ID00220",
+    "channel": "WL180"
+  },
+  "MMACLMKRIP": {
+    "country": "CL",
+    "customerId": "",
+    "type": "ID00220",
+    "channel": "WL180"
+  },
+  "MMACLMKFAL": {
+    "country": "CL",
+    "customerId": "",
+    "type": "ID00220",
+    "channel": "WL180"
+  },
+  "JBLCLMKRIP": {
+    "country": "CL",
+    "customerId": "",
+    "type": "ID00220",
+    "channel": "WL180"
+  },
+  "JBLCLMKPAR": {
+    "country": "CL",
+    "customerId": "",
+    "type": "ID00220",
+    "channel": "WL180"
+  },
+  "MMACOMKFAL": {
+    "country": "CO",
+    "customerId": "Crocs",
+    "type": "ID00216",
+    "channel": "WL180"
+  },
+  "MMACOMKMEL": {
+    "country": "CO",
+    "customerId": "Crocs",
+    "type": "ID00216",
+    "channel": "WL180"
+  },
+  "JBLCOWL180": {
+    "country": "CO",
+    "customerId": "Crocs",
+    "type": "ID00216",
+    "channel": "WL180"
+  },
   "JBLCRWL180": {
     "country": "CR",
     "customerId": "JBL",
@@ -46,6 +106,60 @@
     "customerId": "JBL",
     "type": "ID00224",
     "channel": "B2B"
+  },
+  "JBLMXWL180": {
+    "country": "MX",
+    "customerId": "JBL",
+    "type": "ID00226",
+    "channel": "B2B"
+  },
+  "JBLPEMKRIP": {
+    "country": "MX",
+    "customerId": "JBL",
+    "type": "ID00226",
+    "channel": "B2B"
+  },
+  "MMAMXMKMEL": {
+    "country": "MX",
+    "customerId": "JBL",
+    "type": "ID00226",
+    "channel": "B2B"
+  },
+  "MMAPEMKFAL": {
+    "country": "PE",
+    "customerId": "",
+    "type": "ID00221",
+    "channel": "WL180"
+  },
+  "MMAPEMKMEL": {
+    "country": "PE",
+    "customerId": "",
+    "type": "ID00221",
+    "channel": "WL180"
+  },
+  "HEWPEMKMEL": {
+    "country": "PE",
+    "customerId": "",
+    "type": "ID00221",
+    "channel": "WL180"
+  },
+  "JBLPEWL180": {
+    "country": "PE",
+    "customerId": "",
+    "type": "ID00221",
+    "channel": "WL180"
+  },
+  "JBLUYWL180": {
+    "country": "UY",
+    "customerId": "JBL",
+    "type": "ID00231",
+    "channel": "WL180"
+  },
+  "JBLUYMKMEL": {
+    "country": "UY",
+    "customerId": "JBL",
+    "type": "ID00231",
+    "channel": "WL180"
   },
   "LACOSTECOWL180": {
     "country": "CO",
@@ -59,28 +173,31 @@
     "type": "ID00228",
     "channel": "WL180"
   },
-  "JBLUYWL180": {
-    "country": "UY",
-    "customerId": "JBL",
-    "type": "ID00231",
-    "channel": "WL180"
+  "APLECMKMEL": {
+    "country": "EC",
+    "customerId": "",
+    "type": "ID00232",
+    "channel": "B2B"
   },
-  "JBLCOWL180": {
-    "country": "CO",
-    "customerId": "Crocs",
-    "type": "ID00216",
-    "channel": "WL180"
+  "JBLECMKMEL": {
+    "country": "EC",
+    "customerId": "",
+    "type": "ID00232",
+    "channel": "B2B"
   },
-  "HDCCLWL180": {
-    "country": "CO",
-    "customerId": "Crocs",
-    "type": "ID00216",
-    "channel": "WL180"
+  "MMAECMKMEL": {
+    "country": "EC",
+    "customerId": "",
+    "type": "ID00232",
+    "channel": "B2B"
   },
-  "CROCSPAWL180": {
-    "country": "PA",
-    "customerId": "Crocs",
-    "type": "ID00210",
-    "channel": "WL180"
+  "EPSECMKMEL": {
+    "country": "EC",
+    "customerId": "",
+    "type": "ID00232",
+    "channel": "B2B"
   }
+
+
+
 }
