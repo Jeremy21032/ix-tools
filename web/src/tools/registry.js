@@ -48,6 +48,15 @@ export const tools = [
     icon: "Search",
   },
   {
+    slug: "shopify-orders-export",
+    title: "Shopify: exportar órdenes",
+    description:
+      "Lista todas las órdenes de la tienda: estado de pago, fulfillment, entrega, canal y total.",
+    help: "Equivalente al listado de órdenes del admin. Recorre la tienda y exporta Order, Date, Customer, Fulfil by, Channel, Total, Payment status, Fulfillment status, Items, Delivery status, Delivery method y Tags. Dejá el filtro vacío para traer todas. Token con read_orders. Store + token van en el form porque trabajás con muchas tiendas.",
+    category: "shopify",
+    icon: "Download",
+  },
+  {
     slug: "shopify-orders",
     title: "Shopify: detalle órdenes",
     description:

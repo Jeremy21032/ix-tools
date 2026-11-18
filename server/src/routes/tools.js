@@ -411,6 +411,13 @@ router.get("/jobs/:jobId", (req, res) => {
   return okResult(res, payload);
 });
 
+router.post("/shopify-orders-export", async (req, res) => {
+  const extra = ["-o", "orders_export.csv", "--excel", "orders_export.xlsx"];
+  const query = String(req.body?.query || "").trim();
+  if (query) extra.push("--query", query);
+  await runShopifyScript("shopify_export_orders.py", extra, req, res);
+});
+
 router.post("/shopify-orders", upload.single("ordersFile"), async (req, res) => {
   let inputPath = req.file?.path;
   if (!inputPath && req.body?.ordersText) {
