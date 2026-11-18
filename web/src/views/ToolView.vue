@@ -136,6 +136,30 @@ const FORM_CONFIG = {
   "fema-consumer-order": {
     fields: [{ key: "orders", type: "textarea", label: "Order IDs (uno por línea o coma)", rows: 10 }],
   },
+  "shopify-orders-export": {
+    fields: [
+      {
+        key: "shopifyStore",
+        type: "text",
+        label: "Shopify store",
+        placeholder: "mi-tienda.myshopify.com",
+        persist: "ix-shopify-store",
+      },
+      {
+        key: "shopifyToken",
+        type: "password",
+        label: "Access token (shpat_…)",
+        placeholder: "shpat_…",
+        persist: "ix-shopify-token",
+      },
+      {
+        key: "query",
+        type: "text",
+        label: "Filtro Shopify (opcional)",
+        placeholder: "created_at:>=2026-01-01",
+      },
+    ],
+  },
   "shopify-orders": {
     fields: [
       {
